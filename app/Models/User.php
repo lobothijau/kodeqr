@@ -4,10 +4,12 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Plan;
+use App\Services\Entitlements;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -50,6 +52,16 @@ class User extends Authenticatable implements PasskeyUser
         ];
     }
 
+    private ?Entitlements $entitlements = null;
+
+    /**
+     * @return HasMany<QrCode, $this>
+     */
+    public function qrCodes(): HasMany
+    {
+        return $this->hasMany(QrCode::class);
+    }
+
     /**
      * @return HasOne<Subscription, $this>
      */
@@ -75,5 +87,14 @@ class User extends Authenticatable implements PasskeyUser
         }
 
         return $subscription->isActive() ? $subscription->plan : Plan::Lapsed;
+    }
+
+    /**
+     * The only way to ask what this user may do (constraint 7). Memoised on the
+     * model instance, which is the per-request cache.
+     */
+    public function entitlements(): Entitlements
+    {
+        return $this->entitlements ??= new Entitlements($this);
     }
 }
