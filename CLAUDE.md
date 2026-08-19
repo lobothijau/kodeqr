@@ -239,7 +239,10 @@ on — do not "improve" it in a diff.
    period. A scanner always gets a branded page. See documentation/billing.md.
 9. scan_events is append-only, idempotent on event_uuid. Replaying a batch twice
    produces the same row count.
-10. All Blade/Vue user-facing strings in `lang/id` (+en). No hardcoded UI strings.
+10. All Blade/Vue user-facing strings in `lang/id`. Indonesian only — there is no
+    `lang/en`, and the fallback locale is `id` too (decided 2026-08-19: the product
+    is Indonesian, and a second locale is maintenance with no reader). No hardcoded
+    UI strings.
 11. No new npm/composer deps without a docs/BACKLOG.md entry stating why. The stack above
     is complete for the planned scope.
 12. Diffs stay under ~400 lines. If a task is growing past that, stop and split.

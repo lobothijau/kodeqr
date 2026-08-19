@@ -71,6 +71,15 @@ it('gives every commit to main its own verdict', function () {
         ->toBe("\${{ github.event_name == 'pull_request' }}");
 });
 
+it('defaults a deployed environment to the cache store the redirect path needs', function () {
+    $example = file_get_contents(base_path('.env.example')) ?: '';
+
+    // The `database` store answers /x/{slug} with SQL on every scan and no test can
+    // see it — phpunit forces the array store.
+    expect($example)->toContain('CACHE_STORE=redis')
+        ->and($example)->not->toContain("\nCACHE_STORE=database");
+});
+
 it('ships an executable pre-push hook that runs the same checks as CI', function () {
     $hook = base_path('.githooks/pre-push');
 

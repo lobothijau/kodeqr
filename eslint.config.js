@@ -77,6 +77,9 @@ export default defineConfigWithVueTs(
             'vendor',
             'node_modules',
             'public',
+            // Untracked planning + the Tailwind Plus kit: ~1,300 vendored jsx/vue
+            // files that are reference material, not this project's source.
+            'docs',
             'bootstrap/ssr',
             'tailwind.config.js',
             'vite.config.ts',

@@ -7,9 +7,11 @@ namespace App\Models;
 use App\Enums\Package;
 use App\Enums\Plan;
 use App\Enums\SubscriptionStatus;
+use App\Observers\SubscriptionObserver;
 use Carbon\CarbonImmutable;
 use Database\Factories\SubscriptionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 // `status` is not fillable: the nightly expiry sweep owns the transitions, and
 // extend() owns the only other write to it.
+#[ObservedBy(SubscriptionObserver::class)]
 #[Fillable(['user_id', 'plan', 'package', 'starts_at', 'ends_at'])]
 class Subscription extends Model
 {

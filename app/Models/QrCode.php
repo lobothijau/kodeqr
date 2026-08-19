@@ -6,8 +6,10 @@ namespace App\Models;
 
 use App\Enums\QrCodeStatus;
 use App\Enums\QrCodeType;
+use App\Observers\QrCodeObserver;
 use Database\Factories\QrCodeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +35,7 @@ use Illuminate\Support\Carbon;
 // `status` is deliberately NOT fillable: constraint 8 gives it to the billing and
 // quota state machines, so an owner-supplied payload must never flip a blocked or
 // over_quota code back to active.
+#[ObservedBy(QrCodeObserver::class)]
 #[Fillable(['user_id', 'slug', 'type', 'destination', 'style'])]
 class QrCode extends Model
 {
