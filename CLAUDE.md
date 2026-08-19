@@ -281,8 +281,31 @@ promise — true.
 - [ ] Acceptance criteria from the task file implemented as tests (or noted as
       gate-only with reason)
 - [ ] pint + larastan + pest green locally
+- [ ] `dual-review` run on the diff; every finding fixed or logged (see below)
 - [ ] No violation of constraints 1–12 (self-check against the list)
 - [ ] New strings in lang files; new config in plans.php not inline
 - [ ] docs/BACKLOG.md updated with anything noticed but not built
 - [ ] One-paragraph summary in the PR: what, how verified, which constraint numbers
       were most at risk
+
+## Review loop (mandatory, agent-run — do not wait to be asked)
+
+Before reporting ANY task complete, invoke the `dual-review` skill on that task's
+diff. It runs Claude's multi-agent `code-review` and an OpenAI Codex CLI review in
+parallel and merges them into one deduplicated report. Both halves are agent-
+triggerable; nothing here needs the user to type a slash command.
+
+A task is not done until every finding is either fixed or written to
+docs/BACKLOG.md with a reason for deferring. Verify findings before acting —
+reviewers are wrong often enough that accepting output uncritically is its own
+defect. Where a finding is environment-dependent, prove it: MySQL and SQLite
+disagree on collation and enum enforcement, and production is MySQL.
+
+Codex is the second opinion precisely because it does not share this session's
+assumptions. Worked example: M0-T2 shipped a mixed-case slug on a
+`utf8mb4_unicode_ci` column, so `/x/ABC12X` would have resolved the row for slug
+`aBc12X` behind a byte-distinct cache key and served a stale destination forever.
+Self-review missed it; the second reviewer did not.
+
+Note: `dual-review` currently lives in `~/.claude/skills/`, not this repo, so it is
+per-machine. Move it into `.claude/skills/` if anyone else works on kodeqr.
