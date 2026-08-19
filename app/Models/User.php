@@ -3,10 +3,12 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Plan;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -46,5 +48,32 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return HasOne<Subscription, $this>
+     */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class);
+    }
+
+    /**
+     * The single place the free tier is decided.
+     *
+     * No row at all means Free (never paid). A row past its ends_at means Lapsed,
+     * which is a distinct entitlement set: existing codes keep redirecting behind
+     * the splash, but editing, analytics and new-code creation are off. Never
+     * throws — M0-T3's Entitlements sits directly on top of this.
+     */
+    public function currentPlan(): Plan
+    {
+        $subscription = $this->subscription;
+
+        if ($subscription === null) {
+            return Plan::Free;
+        }
+
+        return $subscription->isActive() ? $subscription->plan : Plan::Lapsed;
     }
 }
