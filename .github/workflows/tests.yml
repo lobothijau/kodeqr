@@ -9,8 +9,16 @@ on:
 permissions:
   contents: read
 
+# Superseded PR runs are noise; superseded pushes are not. kodeqr commits straight
+# to main, so cancelling there would leave a commit with no verdict at all.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Frontend lint/types, pint, larastan, and the suite on SQLite — the fast leg.
   ci:
+    name: ci (sqlite)
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +30,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
 
@@ -30,9 +38,70 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Setup Application
         run: composer setup
 
       - name: Run CI Checks
         run: composer ci:check
+
+  # The same suite against the engine production actually runs. Tests carrying
+  # MySQL-only semantics (ascii_bin slug collation, enum rejection, CONVERT_TZ)
+  # skip themselves on SQLite, so without this job they would never execute
+  # anywhere. Runs in parallel with `ci` — neither waits on the other.
+  mysql:
+    name: tests (mysql 8)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'true'
+          MYSQL_DATABASE: kodeqr_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: kodeqr_testing
+      DB_USERNAME: root
+      DB_PASSWORD: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Builds the Vite manifest too: feature tests render the Inertia root view,
+      # which throws without it.
+      - name: Setup Application
+        run: composer setup
+
+      # --fail-on-skipped is the point of this leg: on MySQL nothing should skip,
+      # so a MySQL-only test that quietly stops running fails the build instead.
+      - name: Run Tests
+        run: php artisan test --compact --fail-on-skipped

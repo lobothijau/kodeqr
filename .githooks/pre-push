@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# kodeqr pre-push: the PHP half of CI, so a red build is caught in seconds rather
+# than minutes. `composer test` is the same script CI runs (pint --test, larastan,
+# pest on SQLite). The MySQL leg and the frontend checks stay in CI — they are too
+# slow to sit in front of a push.
+#
+# Installed by `composer setup`, or by hand:
+#     git config core.hooksPath .githooks
+#
+# It checks the WORKING TREE, not the commits being pushed — a fix you have not
+# committed yet still turns it green. CI is the authority; this is the fast warning.
+#
+# Skip a single push with `git push --no-verify` (and expect CI to catch it).
+
+set -e
+
+# GUI git clients launch hooks with a minimal PATH. Blocking a push with
+# "composer: not found" teaches people --no-verify, which is worse than not running.
+if ! command -v composer >/dev/null 2>&1; then
+    echo "pre-push: composer not on PATH, skipping checks — CI will still run them."
+    exit 0
+fi
+
+composer test
