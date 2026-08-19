@@ -217,7 +217,7 @@ on — do not "improve" it in a diff.
 | Edge | Cloudflare free, orange-cloud | Real IP = CF-Connecting-IP |
 | QR render | bacon/qr-code (server), qrcode npm (preview only) | Server is canonical |
 | Geo | GeoLite2-City local mmdb | Weekly geoip:update |
-| Payments | Midtrans Snap, prepaid periods | NO auto-renew, NO float money |
+| Payments | Midtrans Snap, prepaid packages (3/6/12mo) | NO auto-renew, NO grace, NO float money |
 
 ## Hard constraints (numbered — cite by number in reviews)
 
@@ -233,8 +233,10 @@ on — do not "improve" it in a diff.
    sends an amount.
 7. Plan logic goes through the Entitlements service. Hardcoding a plan name outside
    config/plans.php fails review.
-8. Codes are never silently deleted or dead-ended by billing state. Lapse →
-   grace(14d) → free-tier rules. A scanner always gets a branded page.
+8. Codes are never silently deleted or dead-ended by billing state. At expiry
+   every existing code keeps redirecting behind the splash, forever; the owner
+   loses editing, analytics and new-code creation until they renew. No grace
+   period. A scanner always gets a branded page. See documentation/billing.md.
 9. scan_events is append-only, idempotent on event_uuid. Replaying a batch twice
    produces the same row count.
 10. All Blade/Vue user-facing strings in `lang/id` (+en). No hardcoded UI strings.
@@ -260,7 +262,7 @@ promise — true.
 
 - IDs: ULIDs for user-facing models; bigint for scan_events/link_clicks.
 - Slugs: 6 chars, alphabet `23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz`.
-- Statuses on qr_codes: `active|paused|grace|blocked|over_quota` — add none without
+- Statuses on qr_codes: `active|paused|blocked|over_quota` — add none without
   a docs/BACKLOG.md discussion; every status maps to exactly one scanner-facing page.
 - Jobs: idempotent, chunked, requeue-on-failure for the scan pipeline.
 - Tests: Pest; every task ships its acceptance criteria as tests where testable;
