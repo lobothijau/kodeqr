@@ -24,6 +24,24 @@ Prices live only in `config/plans.php`, as integer rupiah, one entry per
 (tier × duration). The client never sends an amount; the server computes it from the
 tier and duration identifiers the client submits. See constraints 6 and 7.
 
+### Launch prices
+
+Confirmed 2026-08-19. This table records the decision and its date; once M0-T3 lands,
+`config/plans.php` is the runtime authority and this is a description of it, not a
+second source. Change prices there, then update this table in the same commit.
+
+| Tier | 3 months | 6 months | 12 months |
+|---|---|---|---|
+| Regular | Rp 149.000 | Rp 269.000 | Rp 490.000 |
+| Plus | Rp 449.000 | Rp 799.000 | Rp 1.490.000 |
+| Business | Rp 1.349.000 | Rp 2.449.000 | Rp 4.490.000 |
+
+The curve is roughly ×3 / ×5.5 / ×10 against a notional monthly rate, so longer
+commitment visibly pays: buying twelve months costs about two months less than four
+consecutive three-month packages. Monthly is not sold — without auto-renewal it means
+twelve payment events a year and twelve chances to forget, and churn-by-forgetting is
+the dominant failure mode for prepaid billing.
+
 ## Buying again
 
 Buying while a package is still running **extends** it: `ends_at = max(now, ends_at)
