@@ -34,9 +34,11 @@ use Illuminate\Support\Carbon;
  */
 // `status` is deliberately NOT fillable: constraint 8 gives it to the billing and
 // quota state machines, so an owner-supplied payload must never flip a blocked or
-// over_quota code back to active.
+// over_quota code back to active. Neither is `slug`: QrCodeObserver::creating()
+// assigns it, and a request that could choose its own would let a caller squat a
+// string that outlives the request on printed paper.
 #[ObservedBy(QrCodeObserver::class)]
-#[Fillable(['user_id', 'slug', 'type', 'destination', 'style'])]
+#[Fillable(['user_id', 'type', 'destination', 'style'])]
 class QrCode extends Model
 {
     /** @use HasFactory<QrCodeFactory> */

@@ -18,8 +18,23 @@ function qrCode(QrCodeStatus $status = QrCodeStatus::Active, string $url = 'http
 {
     return QrCode::factory()->create([
         'status' => $status,
-        'destination' => ['url' => $url, 'dest_url' => $url],
+        'destination' => ['url' => $url],
     ]);
+}
+
+/**
+ * Writes a destination the M1-T2 renderer would refuse, the only way such a row can
+ * actually come to exist: outside Eloquent. The redirect path has to degrade on a
+ * legacy or hand-edited row, not trust that the write side always ran.
+ *
+ * @param  array<string, mixed>  $destination
+ */
+function plantDestination(QrCode $code, array $destination): QrCode
+{
+    DB::table('qr_codes')->where('id', $code->id)->update(['destination' => json_encode($destination)]);
+    Cache::forget(RedirectController::cacheKey($code->slug));
+
+    return $code;
 }
 
 it('redirects an active code to its destination', function () {
@@ -53,7 +68,7 @@ it('returns the new destination immediately after an edit', function () {
 
     $this->get("/x/{$code->slug}")->assertRedirect('https://example.test/before');
 
-    $code->update(['destination' => ['url' => 'https://example.test/after', 'dest_url' => 'https://example.test/after']]);
+    $code->update(['destination' => ['url' => 'https://example.test/after']]);
 
     // The entire product promise: same printed paper, new destination, no wait.
     $this->get("/x/{$code->slug}")->assertRedirect('https://example.test/after');
@@ -65,7 +80,10 @@ it('drops the old cache entry when a slug changes', function () {
 
     $this->get("/x/{$old}")->assertRedirect();
 
-    $code->update(['slug' => 'Zz9Yx8']);
+    // Set directly, not filled: M1-T2 dropped `slug` from the fillable list so a
+    // request payload cannot choose one. A rename is an internal write from here on.
+    $code->slug = 'Zz9Yx8';
+    $code->save();
 
     // A stale entry under the old key would answer for six hours.
     expect(Cache::get(RedirectController::cacheKey($old)))->toBeNull();
@@ -182,7 +200,7 @@ it('answers a hundred fuzzed slugs with zero queries', function () {
 it('carries the owner plan and scan cap into the cache entry', function () {
     $user = User::factory()->create();
     Subscription::factory()->for($user)->create(['plan' => Plan::Business]);
-    $code = QrCode::factory()->for($user)->create(['destination' => ['dest_url' => 'https://example.test']]);
+    $code = QrCode::factory()->for($user)->create(['destination' => ['url' => 'https://example.test']]);
 
     $this->get("/x/{$code->slug}");
 
@@ -198,7 +216,7 @@ it('carries the owner plan and scan cap into the cache entry', function () {
 });
 
 it('caps a free owner at the free plan scan cap', function () {
-    $code = QrCode::factory()->create(['destination' => ['dest_url' => 'https://example.test']]);
+    $code = QrCode::factory()->create(['destination' => ['url' => 'https://example.test']]);
 
     $this->get("/x/{$code->slug}");
 
@@ -215,7 +233,7 @@ it('never lets an internal failure reach the scanner', function () {
 });
 
 it('shows the branded page rather than redirecting when an active code has no destination', function () {
-    $code = QrCode::factory()->create(['destination' => ['url' => 'https://example.test']]);
+    $code = plantDestination(QrCode::factory()->create(), ['url' => 'https://example.test']);
 
     $this->get("/x/{$code->slug}")
         ->assertOk()
@@ -241,7 +259,7 @@ it('resolves a code created after its miss was cached', function () {
 
     QrCode::factory()->create([
         'slug' => 'RedNew',
-        'destination' => ['dest_url' => 'https://example.test/fresh'],
+        'destination' => ['url' => 'https://example.test/fresh'],
     ]);
 
     // The observer clears the negative entry, so a brand new code works immediately.
@@ -251,7 +269,7 @@ it('resolves a code created after its miss was cached', function () {
 it('resolves the seven-character collision fallback slug', function () {
     $code = QrCode::factory()->create([
         'slug' => 'RedFa77',
-        'destination' => ['dest_url' => 'https://example.test/fallback'],
+        'destination' => ['url' => 'https://example.test/fallback'],
     ]);
 
     // M1-T2 falls back to seven characters after five collisions. A {6} route
@@ -260,7 +278,7 @@ it('resolves the seven-character collision fallback slug', function () {
 });
 
 it('refuses to put a non-http destination in a Location header', function (string $destination) {
-    $code = QrCode::factory()->create(['destination' => ['dest_url' => $destination]]);
+    $code = plantDestination(QrCode::factory()->create(), ['dest_url' => $destination]);
 
     $this->get("/x/{$code->slug}")
         ->assertOk()
@@ -279,7 +297,7 @@ it('refuses to put a non-http destination in a Location header', function (strin
 it('restores a renewed owner without waiting for the cache to expire', function () {
     $user = User::factory()->create();
     $subscription = Subscription::factory()->for($user)->lapsed()->create(['plan' => Plan::Plus]);
-    $code = QrCode::factory()->for($user)->create(['destination' => ['dest_url' => 'https://example.test']]);
+    $code = QrCode::factory()->for($user)->create(['destination' => ['url' => 'https://example.test']]);
 
     $this->get("/x/{$code->slug}");
     expect(Cache::get(RedirectController::cacheKey($code->slug))['plan'])->toBe(Plan::Lapsed->value);

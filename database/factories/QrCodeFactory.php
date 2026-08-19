@@ -8,6 +8,7 @@ use App\Enums\QrCodeStatus;
 use App\Enums\QrCodeType;
 use App\Models\QrCode;
 use App\Models\User;
+use App\Services\SlugGenerator;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -15,11 +16,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class QrCodeFactory extends Factory
 {
-    /**
-     * The slug alphabet from CLAUDE.md conventions: 54 chars, excluding 0 1 I L O i l o.
-     */
-    private const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
-
     /**
      * Define the model's default state.
      *
@@ -46,12 +42,17 @@ class QrCodeFactory extends Factory
         return $this->state(fn (array $attributes): array => ['status' => $status]);
     }
 
+    /**
+     * Generated here rather than through SlugGenerator so a factory call stays free of
+     * a uniqueness SELECT; the alphabet is shared so the two can never drift.
+     */
     private function slug(): string
     {
+        $alphabet = SlugGenerator::ALPHABET;
         $slug = '';
 
-        for ($i = 0; $i < 6; $i++) {
-            $slug .= self::ALPHABET[random_int(0, strlen(self::ALPHABET) - 1)];
+        for ($i = 0; $i < SlugGenerator::LENGTH; $i++) {
+            $slug .= $alphabet[random_int(0, strlen($alphabet) - 1)];
         }
 
         return $slug;
