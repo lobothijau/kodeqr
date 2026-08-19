@@ -285,8 +285,9 @@ promise — true.
 - [ ] No violation of constraints 1–12 (self-check against the list)
 - [ ] New strings in lang files; new config in plans.php not inline
 - [ ] docs/BACKLOG.md updated with anything noticed but not built
-- [ ] One-paragraph summary in the PR: what, how verified, which constraint numbers
-      were most at risk
+- [ ] Commit straight to `main` (no PR unless asked). The commit message carries
+      what the PR body would have: what, how verified, which constraint numbers were
+      most at risk. Task ID prefix on the subject line.
 
 ## Review loop (mandatory, agent-run — do not wait to be asked)
 
