@@ -101,6 +101,8 @@ it('keeps pint, larastan and pest in the one script CI and the hook both call', 
 
     expect($composer['scripts']['test'])->toContain('@lint:check')
         ->and($composer['scripts']['test'])->toContain('@types:check')
-        ->and($composer['scripts']['lint:check'])->toContain('pint --parallel --test')
-        ->and($composer['scripts']['types:check'])->toContain('phpstan analyse');
+        ->and(implode(' ', $composer['scripts']['lint:check']))->toContain('pint --parallel --test')
+        // The memory limit is load-bearing: on a cold cache (i.e. every CI run) the
+        // default 128M crashes a parallel worker mid-analysis.
+        ->and(implode(' ', $composer['scripts']['types:check']))->toContain('phpstan analyse --memory-limit');
 });
