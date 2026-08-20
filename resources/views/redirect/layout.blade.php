@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
+    @isset($refreshTo)
+        {{-- Straight to the destination, never back through /x/: a refresh that
+             re-entered the route would record every free-tier scan twice. --}}
+        <meta http-equiv="refresh" content="{{ $refreshAfter ?? '2.5' }};url={{ $refreshTo }}">
+    @endisset
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#fafafa">
     <title>{{ $title }} · kodeqr</title>
@@ -51,6 +56,25 @@
             box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
         }
 
+        h1.label {
+            margin: 0 0 0.75rem;
+            color: var(--muted); font-size: 0.9375rem; font-weight: 400; letter-spacing: 0;
+        }
+        .host {
+            margin: 0 0 1.75rem;
+            font-size: 1.375rem; font-weight: 600; line-height: 1.3;
+            letter-spacing: -0.02em; color: var(--fg);
+            overflow-wrap: anywhere;
+        }
+        .action {
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            width: 100%; padding: 0.8125rem 1.25rem;
+            background: var(--brand); color: var(--surface);
+            border-radius: 0.625rem;
+            font-size: 0.9375rem; font-weight: 600; text-decoration: none;
+        }
+        .action svg { width: 1rem; height: 1rem; }
+
         .badge {
             display: inline-flex; align-items: center; justify-content: center;
             width: 3rem; height: 3rem; margin-bottom: 1.25rem;
@@ -89,6 +113,19 @@
     </div>
 
     <main class="card tone-{{ $tone ?? 'neutral' }}">
+        @isset($host)
+            {{-- Host first, and large. This is the one moment in the whole flow where
+                 somebody standing in front of a printed code can still decline. --}}
+            <h1 class="label">{{ $title }}</h1>
+            <p class="host">{{ $host }}</p>
+            <a class="action" href="{{ $destination }}" rel="noreferrer">
+                {{ __('redirect.splash.action') }}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+                </svg>
+            </a>
+        @else
         <div class="badge" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
@@ -114,8 +151,9 @@
         </div>
         <h1>{{ $title }}</h1>
         <p>{{ $body }}</p>
+        @endisset
     </main>
 
-    <footer>{!! __('redirect.footer', ['brand' => '<a href="https://kodeqr.com">kodeqr.com</a>']) !!}</footer>
+    <footer>{!! $footer ?? __('redirect.footer', ['brand' => '<a href="https://kodeqr.com">kodeqr.com</a>']) !!}</footer>
 </body>
 </html>

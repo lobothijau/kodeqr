@@ -17,31 +17,6 @@ use Illuminate\Support\Facades\Redis;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Answered once per run. Without a server these tests skip; the MySQL CI leg runs
- * with one and uses --fail-on-skipped, so they cannot quietly stop executing.
- */
-function redisReachable(): bool
-{
-    static $reachable = null;
-
-    if ($reachable === null) {
-        try {
-            Redis::connection()->ping();
-            $reachable = true;
-        } catch (Throwable) {
-            $reachable = false;
-        }
-    }
-
-    return $reachable;
-}
-
-function skipWithoutRedis(): bool
-{
-    return ! redisReachable();
-}
-
-/**
  * @return array<int, array<string, mixed>>
  */
 function bufferedScans(): array
@@ -62,11 +37,16 @@ function expectedIpHash(string $ip): string
     return hash('sha256', $day.config('app.key').$ip);
 }
 
-function scanCode(int $scanCount = 0, QrCodeStatus $status = QrCodeStatus::Active, ?Plan $plan = null): QrCode
+/**
+ * Paid by default: a free-plan code renders the interstitial rather than a 302 since
+ * M1-T6, and most of this file is about what the buffer records, not which page is
+ * served. Cap tests pass Plan::Free explicitly, because the cap only exists there.
+ */
+function scanCode(int $scanCount = 0, QrCodeStatus $status = QrCodeStatus::Active, Plan $plan = Plan::Regular): QrCode
 {
     $user = User::factory()->create();
 
-    if ($plan !== null) {
+    if ($plan !== Plan::Free) {
         Subscription::factory()->for($user)->create(['plan' => $plan]);
     }
 
@@ -76,12 +56,6 @@ function scanCode(int $scanCount = 0, QrCodeStatus $status = QrCodeStatus::Activ
         'destination' => ['url' => 'https://example.test/menu'],
     ]);
 }
-
-beforeEach(function () {
-    if (redisReachable()) {
-        Redis::connection()->flushdb();
-    }
-});
 
 it('buffers one payload per scan in the shape the processor expects', function () {
     $code = scanCode();
@@ -200,14 +174,18 @@ it('seeds the cap counter from the database when the cache is cold', function ()
 })->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('lets the last scan inside the cap through', function () {
-    $code = scanCode(scanCount: 499);
+    $code = scanCode(scanCount: 499, plan: Plan::Free);
 
-    $this->get("/x/{$code->slug}")->assertRedirect('https://example.test/menu');
+    // Free plans are the only ones with a cap, and a free plan reaches its
+    // destination through the interstitial rather than a 302.
+    $this->get("/x/{$code->slug}")
+        ->assertOk()
+        ->assertSee('example.test');
 })->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('serves the over quota page on the scan past the cap and flips the row once', function () {
     Bus::fake();
-    $code = scanCode(scanCount: 500);
+    $code = scanCode(scanCount: 500, plan: Plan::Free);
 
     $this->get("/x/{$code->slug}")
         ->assertStatus(Response::HTTP_GONE)
@@ -224,7 +202,7 @@ it('serves the over quota page on the scan past the cap and flips the row once',
 })->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('makes the row agree with the page within one queue cycle', function () {
-    $code = scanCode(scanCount: 500);
+    $code = scanCode(scanCount: 500, plan: Plan::Free);
 
     $this->get("/x/{$code->slug}")->assertStatus(Response::HTTP_GONE);
 
@@ -256,20 +234,22 @@ it('redirects and logs once when the buffer is unreachable', function () {
 });
 
 it('fails open on the cap when the counter cannot be read', function () {
-    $code = scanCode(scanCount: 10_000);
+    $code = scanCode(scanCount: 10_000, plan: Plan::Free);
 
     // Down before the first scan, so neither the seed nor the counter answers. The
-    // row says this free code is 9,500 scans past its cap and it still redirects.
+    // row says this free code is 9,500 scans past its cap and it still gets through.
     Redis::shouldReceive('connection')->andThrow(new RuntimeException('valkey is down'));
 
     // A code the owner paid nothing for still beats a dead end at printed paper:
     // constraint 8 says the scanner always gets somewhere, and refusing one because
     // our own counter is down is exactly the failure it forbids.
-    $this->get("/x/{$code->slug}")->assertRedirect('https://example.test/menu');
+    $this->get("/x/{$code->slug}")
+        ->assertOk()
+        ->assertSee('example.test');
 });
 
 it('still enforces the cap when only the buffer write fails', function () {
-    $code = scanCode(scanCount: 500);
+    $code = scanCode(scanCount: 500, plan: Plan::Free);
     $connection = Mockery::mock();
     $connection->shouldReceive('incr')->once()->andReturn(501);
     $connection->shouldReceive('rpush')->once()->andThrow(new RuntimeException('OOM command not allowed'));
@@ -285,7 +265,7 @@ it('still enforces the cap when only the buffer write fails', function () {
 });
 
 it('serves the over quota page even when the queue refuses the job', function () {
-    $code = scanCode(scanCount: 500);
+    $code = scanCode(scanCount: 500, plan: Plan::Free);
     $this->mock(Dispatcher::class)
         ->shouldReceive('dispatch')->andThrow(new RuntimeException('queue is down'))
         ->shouldReceive('dispatchToQueue')->andThrow(new RuntimeException('queue is down'));
@@ -319,8 +299,11 @@ it('does not flag a code whose owner upgraded before the job ran', function () {
 });
 
 it('flips only an active code and drops its cache entry', function () {
-    $code = scanCode();
-    $this->get("/x/{$code->slug}")->assertRedirect();
+    // Free: since M1-T5 the job re-reads the cap, and an uncapped plan is not its
+    // business to flip.
+    $code = scanCode(plan: Plan::Free);
+    // Free reaches its destination through the interstitial, not a Location header.
+    $this->get("/x/{$code->slug}")->assertOk();
 
     (new FlagQrCodeOverQuota($code->id))->handle();
 
@@ -333,7 +316,7 @@ it('flips only an active code and drops its cache entry', function () {
 });
 
 it('leaves a code that was blocked in the meantime alone', function () {
-    $code = scanCode(status: QrCodeStatus::Blocked);
+    $code = scanCode(status: QrCodeStatus::Blocked, plan: Plan::Free);
 
     (new FlagQrCodeOverQuota($code->id))->handle();
 

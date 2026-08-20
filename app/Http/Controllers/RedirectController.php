@@ -87,13 +87,28 @@ final class RedirectController extends Controller
                 return $this->page('unavailable');
             }
 
-            // Recorded before the cap is judged, because the counter that judges it
-            // is incremented by the same call that records. A scan over the cap still
+            // A lapsed owner's scans are not recorded at all — not the event, not
+            // the counter. Their codes redirect forever for nothing, so serving one
+            // has to stay close to free (documentation/billing.md). Everyone else is
+            // recorded before the cap is judged, because the counter that judges it
+            // is incremented by the same call that records: a scan over the cap still
             // happened, and the owner should see the demand they are turning away.
-            $count = $this->record($request, $slug, $code);
+            // Named for what it changes, not for the plan behind it: an owner whose
+            // scans are not recorded is an existing customer to invite back in, not a
+            // prospect to sell to. The plan that produces it stays in config.
+            $managed = ($code['records_scans'] ?? true) === false;
+            $count = $managed ? null : $this->record($request, $slug, $code);
 
             if ($this->isOverQuota($code, $count)) {
                 return $this->page('inactive', SymfonyResponse::HTTP_GONE);
+            }
+
+            // The splash IS the scan: it is recorded above, once, server-side, and
+            // the refresh below points straight at the destination rather than back
+            // through this route — a second pass here would count every free scan
+            // twice.
+            if (($code['interstitial'] ?? false) === true) {
+                return $this->splash($destination, $managed);
             }
 
             return $this->destination($destination);
@@ -111,14 +126,14 @@ final class RedirectController extends Controller
     }
 
     /**
-     * @return array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}|null
+     * @return array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed, interstitial: mixed, records_scans: mixed}|null
      */
     private function resolve(string $slug): ?array
     {
         $cached = Cache::get(self::cacheKey($slug));
 
         if (is_array($cached)) {
-            /** @var array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed} $cached */
+            /** @var array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed, interstitial: mixed, records_scans: mixed} $cached */
             return $cached;
         }
 
@@ -143,8 +158,16 @@ final class RedirectController extends Controller
             'plan' => $code->user->currentPlan()->value,
             'scan_cap' => $code->user->entitlements()->limit('scan_cap_per_code'),
             'scan_count_key' => "scans:count:{$code->id}",
+            // Both resolved through Entitlements here, on the cold path, so the warm
+            // path never needs a user, a subscription or a plan name to decide
+            // anything (constraint 7).
+            'interstitial' => $code->user->entitlements()->can('interstitial'),
+            'records_scans' => $code->user->entitlements()->can('records_scans'),
         ];
 
+        // Not for an owner whose scans are not recorded: nothing will ever increment
+        // it, and their codes are served forever for nothing.
+        //
         // Before the cache entry is published, not after: any scan that warm-hits in
         // between would INCR a key that does not exist yet, create it at 1, and the
         // SETNX would then no-op — handing a code that has used 480 of its 500 scans
@@ -153,11 +176,36 @@ final class RedirectController extends Controller
         //
         // SETNX, because a counter that already exists is ahead of the database:
         // M1-T4's processor writes scan_count a minute behind.
-        $this->seedScanCounter($payload['scan_count_key'], $code->scan_count);
+        if ($payload['records_scans'] === true) {
+            $this->seedScanCounter($payload['scan_count_key'], $code->scan_count);
+        }
 
-        Cache::put(self::cacheKey($slug), $payload, self::CACHE_TTL);
+        Cache::put(self::cacheKey($slug), $payload, $this->ttlFor($code));
 
         return $payload;
+    }
+
+    /**
+     * Six hours, unless the owner's package ends sooner.
+     *
+     * Lapsing is a clock event, not a write: `now() >= ends_at` and nothing in the
+     * database changes, so no observer fires. Without this clamp a package that
+     * expired at 09:00 would keep serving paid 302s — and recording scans that
+     * documentation/billing.md says must not be recorded — until 15:00.
+     */
+    private function ttlFor(QrCode $code): int
+    {
+        $endsAt = $code->user->subscription?->ends_at;
+
+        if ($endsAt === null || $endsAt->isPast()) {
+            return self::CACHE_TTL;
+        }
+
+        // Integer timestamps rather than a Carbon diff: a TTL is whole seconds, and
+        // the extra second puts the expiry just past the boundary rather than on it.
+        $remaining = $endsAt->getTimestamp() - now()->getTimestamp() + 1;
+
+        return max(1, min(self::CACHE_TTL, $remaining));
     }
 
     /**
@@ -168,7 +216,7 @@ final class RedirectController extends Controller
      * Every failure mode ends the same way — return null, log, let the scanner
      * through. A dead buffer must never become a dead code (I2).
      *
-     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}  $code
+     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed, interstitial: mixed, records_scans: mixed}  $code
      * @return int|null the scan count after this scan, or null when it could not be counted
      */
     private function record(Request $request, string $slug, array $code): ?int
@@ -225,7 +273,7 @@ final class RedirectController extends Controller
      * redirects. Constraint 8 says a scanner never hits a dead end, and refusing one
      * because our own counter is unavailable is exactly that.
      *
-     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}  $code
+     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed, interstitial: mixed, records_scans: mixed}  $code
      */
     private function isOverQuota(array $code, ?int $count): bool
     {
@@ -305,7 +353,18 @@ final class RedirectController extends Controller
 
     private function isSafeDestination(string $url): bool
     {
-        if ($url === '' || preg_match('/[\x00-\x1F\x7F]/', $url) === 1) {
+        // A backslash or userinfo makes PHP and a browser disagree about which host
+        // this is. On the 302 path that was a wrong destination; on the splash it is
+        // worse — the page would name `good.test` while the browser goes to
+        // `evil.test`, turning the one honest moment in the flow into a lie. The
+        // renderer refuses both, so only a legacy or hand-written row gets here.
+        if ($url === '' || preg_match('/[\x00-\x1F\x7F\\\\]/', $url) === 1) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
             return false;
         }
 
@@ -330,6 +389,26 @@ final class RedirectController extends Controller
     }
 
     /**
+     * The free-tier and lapsed interstitial.
+     *
+     * The host is shown because a scanner deserves to know where a piece of printed
+     * paper is about to send them — it is the only moment in the whole flow where
+     * someone can still decline. `no-store` for the same reason as the 302: a cached
+     * splash keeps naming the old destination after an edit.
+     */
+    private function splash(string $destination, bool $managed): Response
+    {
+        return response()
+            ->view('redirect.splash', [
+                'destination' => $destination,
+                'host' => (string) parse_url($destination, PHP_URL_HOST),
+                'managed' => $managed,
+            ])
+            ->header('Cache-Control', 'no-store')
+            ->header('Referrer-Policy', 'no-referrer');
+    }
+
+    /**
      * Status pages are `no-store` for the same reason the 302 is: a cached "not
      * active" page outlives the pause that caused it, and the scanner has no way to
      * know they are looking at yesterday's answer.
@@ -341,8 +420,14 @@ final class RedirectController extends Controller
             ->header('Cache-Control', 'no-store');
     }
 
+    /**
+     * Versioned. A payload cached before M1-T6 carries neither `interstitial` nor
+     * `records_scans`, and the fallbacks would read as "paid" — so for six hours
+     * after a deploy a lapsed owner's codes would skip the splash and record scans.
+     * Bumping the prefix retires every stale entry at the moment of deploy.
+     */
     public static function cacheKey(string $slug): string
     {
-        return "qr:{$slug}";
+        return "qr:v2:{$slug}";
     }
 }

@@ -178,7 +178,24 @@ final class DestinationRenderer
             throw new InvalidArgumentException('URL destination has no host.');
         }
 
+        // A code pointing at a /x/ link — its own or another's — is a loop. Behind a
+        // 302 the browser's hop cap ended it; behind M1-T6's interstitial there is no
+        // cap at all, and a lapsed code (no scan cap, nothing recorded) would bounce
+        // every 2.5 seconds for ever.
+        if ($this->isSelfReferential((string) $parts['host'], (string) ($parts['path'] ?? ''))) {
+            throw new InvalidArgumentException('URL destination points back at a kodeqr link.');
+        }
+
         return $url;
+    }
+
+    private function isSelfReferential(string $host, string $path): bool
+    {
+        $ourHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+        return is_string($ourHost)
+            && mb_strtolower($host) === mb_strtolower($ourHost)
+            && str_starts_with($path, '/x/');
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
 
 /*
@@ -16,6 +17,14 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
+    // Redis is as much test state as the database is: the scan buffer, the cap
+    // counters and the uniqueness claims all outlive a test otherwise. Database 15
+    // is set in phpunit.xml, so this cannot reach a developer's working data.
+    ->beforeEach(function (): void {
+        if (redisReachable()) {
+            Redis::connection()->flushdb();
+        }
+    })
     ->in('Feature');
 
 /*
@@ -44,7 +53,27 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Answered once per run. Tests that need a real Redis skip without one; the MySQL CI
+ * leg runs with a server and --fail-on-skipped, so they cannot quietly stop running.
+ */
+function redisReachable(): bool
 {
-    // ..
+    static $reachable = null;
+
+    if ($reachable === null) {
+        try {
+            Redis::connection()->ping();
+            $reachable = true;
+        } catch (Throwable) {
+            $reachable = false;
+        }
+    }
+
+    return $reachable;
+}
+
+function skipWithoutRedis(): bool
+{
+    return ! redisReachable();
 }

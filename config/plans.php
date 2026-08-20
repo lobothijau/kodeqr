@@ -38,6 +38,7 @@ return [
         'retention_days' => 7,
         'can_edit' => true,
         'interstitial' => true,
+        'records_scans' => true,
         'styling' => false,
         'vector_export' => false,
         'file_qr' => false,
@@ -55,7 +56,11 @@ return [
         'scan_cap_per_code' => null,
         'retention_days' => PlanConfig::INHERIT,
         'can_edit' => false,
+        // The one plan whose scans are not recorded at all. Serving a lapsed
+        // redirect has to stay close to free — a Valkey hit and a response — because
+        // it is served forever for nothing (documentation/billing.md).
         'interstitial' => true,
+        'records_scans' => false,
         'styling' => false,
         'vector_export' => false,
         'file_qr' => false,
@@ -72,6 +77,7 @@ return [
         'retention_days' => 365,
         'can_edit' => true,
         'interstitial' => false,
+        'records_scans' => true,
         'styling' => true,
         'vector_export' => true,
         'file_qr' => true,
@@ -92,6 +98,7 @@ return [
         'retention_days' => 365,
         'can_edit' => true,
         'interstitial' => false,
+        'records_scans' => true,
         'styling' => true,
         'vector_export' => true,
         'file_qr' => true,
@@ -112,6 +119,7 @@ return [
         'retention_days' => null,
         'can_edit' => true,
         'interstitial' => false,
+        'records_scans' => true,
         'styling' => true,
         'vector_export' => true,
         'file_qr' => true,

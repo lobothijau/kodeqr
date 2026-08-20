@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\Plan;
 use App\Enums\QrCodeStatus;
 use App\Enums\QrCodeType;
+use App\Http\Controllers\RedirectController;
 use App\Models\QrCode;
+use App\Models\Subscription;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -192,6 +196,9 @@ it('refuses to persist a type nothing can render yet', function (QrCodeType $typ
 
 it('sends a scanner to the rendered whatsapp url without building it per request', function () {
     $code = whatsappCode(['phone' => '08123456789', 'text' => 'Halo & selamat datang']);
+    // Paid: a free owner would see the interstitial rather than a Location header.
+    Subscription::factory()->for($code->user)->create(['plan' => Plan::Regular]);
+    Cache::forget(RedirectController::cacheKey($code->slug));
 
     $this->get("/x/{$code->slug}")
         ->assertRedirect('https://wa.me/628123456789?text=Halo%20%26%20selamat%20datang');

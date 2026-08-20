@@ -48,8 +48,8 @@ it('sells exactly the three prepaid durations, and no monthly', function (Plan $
 it('configures every key for every plan', function (Plan $plan) {
     $keys = [
         'max_codes', 'scan_cap_per_code', 'retention_days', 'can_edit', 'interstitial',
-        'styling', 'vector_export', 'file_qr', 'bulk', 'api_quota', 'analytics_depth',
-        'seats', 'prices',
+        'records_scans', 'styling', 'vector_export', 'file_qr', 'bulk', 'api_quota',
+        'analytics_depth', 'seats', 'prices',
     ];
 
     // A missing key denies rather than throws, so only a test catches the typo.

@@ -15,27 +15,6 @@ use Illuminate\Support\Str;
 
 const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 13; SM-A536E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
-function redisUp(): bool
-{
-    static $up = null;
-
-    if ($up === null) {
-        try {
-            Redis::connection()->ping();
-            $up = true;
-        } catch (Throwable) {
-            $up = false;
-        }
-    }
-
-    return $up;
-}
-
-function skipWithoutRedisServer(): bool
-{
-    return ! redisUp();
-}
-
 /**
  * Hashed the way RedirectController hashes: the WIB date is part of the salt, so the
  * same scanner is a different hash tomorrow.
@@ -85,12 +64,6 @@ function drain(): void
     app(ProcessScanBuffer::class)->handle(app(ScanEnricher::class));
 }
 
-beforeEach(function () {
-    if (redisUp()) {
-        Redis::connection()->flushdb();
-    }
-});
-
 it('drains 1,200 payloads into 1,200 rows using one insert per chunk', function () {
     $code = QrCode::factory()->create();
     $payloads = [];
@@ -119,7 +92,7 @@ it('drains 1,200 payloads into 1,200 rows using one insert per chunk', function 
         ->and(bufferLength())->toBe(0)
         ->and($code->fresh()->scan_count)->toBe(1_200)
         ->and($code->fresh()->last_scanned_at)->not->toBeNull();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('produces the same rows and the same counters when a chunk is replayed', function () {
     $code = QrCode::factory()->create();
@@ -138,7 +111,7 @@ it('produces the same rows and the same counters when a chunk is replayed', func
     // a plan's cap on every replay, long after the row count looked fine.
     expect(ScanEvent::query()->count())->toBe(200)
         ->and($code->fresh()->scan_count)->toBe(200);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('counts a payload once when the same one lands twice in a single chunk', function () {
     $code = QrCode::factory()->create();
@@ -153,7 +126,7 @@ it('counts a payload once when the same one lands twice in a single chunk', func
 
     expect(ScanEvent::query()->count())->toBe(1)
         ->and($code->fresh()->scan_count)->toBe(1);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('still calls a first visit unique after the chunk carrying it failed once', function () {
     $code = QrCode::factory()->create();
@@ -171,7 +144,7 @@ it('still calls a first visit unique after the chunk carrying it failed once', f
     // the replay would record the only real visit of the day as a repeat — and
     // scan_events is append-only, so that count would be wrong for ever.
     expect(ScanEvent::query()->sole()->is_unique)->toBeTrue();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('keeps the chunk when mapping throws, not just when the insert does', function () {
     $code = QrCode::factory()->create();
@@ -187,7 +160,7 @@ it('keeps the chunk when mapping throws, not just when the insert does', functio
     expect(fn () => app(ProcessScanBuffer::class)->handle($enricher))->toThrow(RuntimeException::class);
 
     expect(bufferLength())->toBe(5);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('refuses a timestamp no scan could carry', function (mixed $timestamp) {
     $code = QrCode::factory()->create();
@@ -203,7 +176,7 @@ it('refuses a timestamp no scan could carry', function (mixed $timestamp) {
     'year 10000' => [253402300800],
     'before the product existed' => [946684800],
     'not a number' => ['soon'],
-])->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+])->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('parses the user agent into the columns a dashboard groups by', function () {
     $code = QrCode::factory()->create();
@@ -217,7 +190,7 @@ it('parses the user agent into the columns a dashboard groups by', function () {
         ->and($event->os)->toBe('Android')
         ->and($event->browser)->toBe('Chrome Mobile')
         ->and($event->is_bot)->toBeFalse();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('flags link previews as bots and keeps them out of dashboard queries', function (string $userAgent) {
     $code = QrCode::factory()->create();
@@ -237,7 +210,7 @@ it('flags link previews as bots and keeps them out of dashboard queries', functi
     'googlebot' => ['Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
     'curl' => ['curl/8.4.0'],
     'headless chrome' => ['Mozilla/5.0 HeadlessChrome/120.0.0.0'],
-])->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+])->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('counts a scanner once a day and again the next day', function () {
     $code = QrCode::factory()->create();
@@ -258,7 +231,7 @@ it('counts a scanner once a day and again the next day', function () {
     drain();
 
     expect(ScanEvent::query()->where('is_unique', true)->count())->toBe(2);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('never lets a bot claim a scanner uniqueness slot', function () {
     $code = QrCode::factory()->create();
@@ -271,7 +244,7 @@ it('never lets a bot claim a scanner uniqueness slot', function () {
     // only real visit of the day would be recorded as a repeat.
     expect(ScanEvent::query()->where('is_bot', true)->sole()->is_unique)->toBeFalse()
         ->and(ScanEvent::query()->where('is_bot', false)->sole()->is_unique)->toBeTrue();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('keeps the buffer intact when the database goes away mid-run', function () {
     $code = QrCode::factory()->create();
@@ -289,7 +262,7 @@ it('keeps the buffer intact when the database goes away mid-run', function () {
     // scans. The event ids make the replay safe.
     expect(bufferLength())->toBe(10)
         ->and(ScanEvent::query()->count())->toBe(0);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('drops payloads it cannot read instead of poisoning the chunk', function () {
     $code = QrCode::factory()->create();
@@ -312,7 +285,7 @@ it('drops payloads it cannot read instead of poisoning the chunk', function () {
         ->and(bufferLength())->toBe(0);
 
     Log::shouldHaveReceived('warning')->once();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('drops scans for a code that no longer exists rather than retrying forever', function () {
     $code = QrCode::factory()->create();
@@ -331,7 +304,7 @@ it('drops scans for a code that no longer exists rather than retrying forever', 
         ->and(bufferLength())->toBe(0);
 
     Log::shouldHaveReceived('warning')->once();
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('does not drag last_scanned_at backwards when chunks arrive out of order', function () {
     $code = QrCode::factory()->create();
@@ -345,7 +318,7 @@ it('does not drag last_scanned_at backwards when chunks arrive out of order', fu
 
     expect($code->fresh()->last_scanned_at->timestamp)->toBe($latest->timestamp)
         ->and($code->fresh()->scan_count)->toBe(2);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('stops after ten thousand payloads and leaves the rest for the next minute', function () {
     $code = QrCode::factory()->create();
@@ -363,4 +336,4 @@ it('stops after ten thousand payloads and leaves the rest for the next minute', 
     // for an hour.
     expect(ScanEvent::query()->count())->toBe(ProcessScanBuffer::MAX_PER_RUN)
         ->and(bufferLength())->toBe(500);
-})->skip(skipWithoutRedisServer(...), 'Redis not reachable.');
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');

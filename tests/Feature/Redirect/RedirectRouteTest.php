@@ -14,9 +14,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * A paid owner, deliberately: since M1-T6 a free-plan code renders the interstitial
+ * instead of a 302, and these tests are about the redirect mechanism itself. The
+ * splash has its own file.
+ */
 function qrCode(QrCodeStatus $status = QrCodeStatus::Active, string $url = 'https://example.test/menu'): QrCode
 {
-    return QrCode::factory()->create([
+    $user = User::factory()->create();
+    Subscription::factory()->for($user)->create(['plan' => Plan::Regular]);
+
+    return QrCode::factory()->for($user)->create([
         'status' => $status,
         'destination' => ['url' => $url],
     ]);
@@ -257,7 +265,9 @@ it('caches a miss so a fuzzed but well-formed slug costs one query, not one per 
 it('resolves a code created after its miss was cached', function () {
     $this->get('/x/RedNew')->assertNotFound();
 
-    QrCode::factory()->create([
+    $owner = User::factory()->create();
+    Subscription::factory()->for($owner)->create(['plan' => Plan::Regular]);
+    QrCode::factory()->for($owner)->create([
         'slug' => 'RedNew',
         'destination' => ['url' => 'https://example.test/fresh'],
     ]);
@@ -267,7 +277,9 @@ it('resolves a code created after its miss was cached', function () {
 });
 
 it('resolves the seven-character collision fallback slug', function () {
-    $code = QrCode::factory()->create([
+    $owner = User::factory()->create();
+    Subscription::factory()->for($owner)->create(['plan' => Plan::Regular]);
+    $code = QrCode::factory()->for($owner)->create([
         'slug' => 'RedFa77',
         'destination' => ['url' => 'https://example.test/fallback'],
     ]);
