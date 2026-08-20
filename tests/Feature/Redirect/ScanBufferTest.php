@@ -140,9 +140,10 @@ it('hashes the Cloudflare address rather than the socket address', function () {
 it('buckets the ip hash by Jakarta day, not UTC day', function () {
     $code = scanCode();
 
-    // 23:30 WIB is already the next UTC day. A UTC bucket would split one evening's
-    // scanner across two days and never line up with the dashboards.
-    $this->travelTo(now()->timezone('Asia/Jakarta')->setTime(23, 30));
+    // WIB is UTC+7, so the only hours where the two dates differ are 00:00-06:59
+    // Jakarta, which is still yesterday in UTC. At any other hour this test passes
+    // against a UTC implementation too and proves nothing.
+    $this->travelTo(now()->timezone('Asia/Jakarta')->setTime(0, 30));
     $this->get("/x/{$code->slug}", ['CF-Connecting-IP' => '203.0.113.77']);
 
     expect(bufferedScans()[0]['ip_hash'])->toBe(expectedIpHash('203.0.113.77'));

@@ -14,6 +14,24 @@ return [
     |
     */
 
+    /*
+    | The destination threat check (constraint 5). Cloudflare's security resolver
+    | answers 0.0.0.0 with EDE 16 ("Censored") for domains in its malware and
+    | phishing intel, and needs no account or key. Safe Browsing was ruled out: it
+    | needs a Google Cloud project (.ai/rules/general.md), and every free no-account
+    | feed (OpenPhish, URLhaus) has moved behind registration. Domain-level only:
+    | see docs/BACKLOG.md for what that misses.
+    */
+    'threat_check' => [
+        // Named in the message the owner sees: the verdict is this service's, not
+        // ours, and an owner who thinks it is wrong needs to know whose list to
+        // appeal to. Change the provider and this changes with it.
+        'name' => env('THREAT_CHECK_NAME', 'Cloudflare'),
+        'resolver' => env('THREAT_CHECK_RESOLVER', 'https://security.cloudflare-dns.com/dns-query'),
+        'timeout' => env('THREAT_CHECK_TIMEOUT', 2),
+        'cache_ttl' => env('THREAT_CHECK_CACHE_TTL', 86400),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

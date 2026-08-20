@@ -218,6 +218,7 @@ on — do not "improve" it in a diff.
 | QR render | bacon/qr-code (server), qrcode npm (preview only) | Server is canonical |
 | Geo | GeoLite2-City local mmdb | Weekly geoip:update |
 | Payments | Midtrans Snap, prepaid packages (3/6/12mo) | NO auto-renew, NO grace, NO float money |
+| Threat check | Cloudflare security resolver (DoH) | No Google Cloud services: see .ai/rules/general.md |
 
 ## Hard constraints (numbered — cite by number in reviews)
 
@@ -227,8 +228,11 @@ on — do not "improve" it in a diff.
    delay or fail the redirect.
 3. Raw IP addresses never persist. Only `sha256(date . app_key . ip)`.
 4. QR images always encode `https://kodeqr.com/x/{slug}` — never a destination URL.
-5. Every destination URL passes Safe Browsing on create AND edit. No exceptions,
-   no admin bypass without an abuse_flags row.
+5. Every destination URL passes the threat check on create AND edit. No exceptions,
+   no admin bypass without an abuse_flags row. (Provider changed 2026-08-20: Google
+   Safe Browsing needs a Cloud project and API key, which this project does not open
+   — see .ai/rules/general.md. It is now Cloudflare's security resolver, which is
+   domain-level rather than URL-level; see docs/BACKLOG.md.)
 6. Money is integers (rupiah). Prices live only in config/plans.php. Client never
    sends an amount.
 7. Plan logic goes through the Entitlements service. Hardcoding a plan name outside

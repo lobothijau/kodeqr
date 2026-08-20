@@ -40,7 +40,7 @@ final class ProcessScanBuffer implements ShouldBeUnique, ShouldQueue
      * draining at once would each filter already-recorded ids before the other's
      * insert lands, and count the same event twice.
      */
-    public int $uniqueFor = 300;
+    public int $uniqueFor = 900;
 
     /**
      * One attempt. A failed chunk is already back on the buffer, and the schedule
@@ -158,12 +158,20 @@ final class ProcessScanBuffer implements ShouldBeUnique, ShouldQueue
             // replay can still call a first visit a first visit; and the event ids
             // mean it cannot double-count. Losing a minute of scans to a deadlock is
             // a choice, not an inevitability.
-            $enricher->releaseClaims();
-
+            // The scans go back FIRST. Releasing claims is its own Redis call, and
+            // the most likely reason for being in this catch at all is Valkey being
+            // unwell — a throw from the release would take the whole chunk with it,
+            // which is the exact loss this block exists to prevent.
             $pending = [...$readable, ...array_slice($chunk, $position)];
 
             if ($pending !== []) {
                 Redis::connection()->rpush(RedirectController::BUFFER_KEY, ...$pending);
+            }
+
+            try {
+                $enricher->releaseClaims();
+            } catch (Throwable) {
+                // The claims expire on their own; the scans would not have.
             }
 
             throw $exception;

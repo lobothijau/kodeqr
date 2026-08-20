@@ -164,7 +164,20 @@ it('refuses a url that must never reach a Location header', function (string $ur
     'header injection' => ["https://kodeqr.test/\r\nSet-Cookie: a=b"],
     'no host' => ['https://'],
     'empty' => ['   '],
+    // PHP reads the host here as safe.test; a browser follows WHATWG, treats the
+    // backslash as a slash, and goes to evil.test. Anything that checks one and
+    // navigates to the other is a hole, so neither gets the chance.
+    'backslash authority' => ['https://evil.test\\@safe.test/login'],
+    // The oldest phishing disguise there is: reads as the bank, goes to evil.test.
+    'userinfo' => ['https://bank.co.id@evil.test/masuk'],
+    'userinfo with password' => ['https://a:b@evil.test/'],
 ]);
+
+it('still allows an at sign in the path, where handles live', function () {
+    $code = QrCode::factory()->create(['destination' => ['url' => 'https://x.com/@kodeqr']]);
+
+    expect($code->fresh()->destination['dest_url'])->toBe('https://x.com/@kodeqr');
+});
 
 it('refuses to persist a type nothing can render yet', function (QrCodeType $type) {
     // M3 and M4 add these. Until then a row of this type cannot exist at all, which

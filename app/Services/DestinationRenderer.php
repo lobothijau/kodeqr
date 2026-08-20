@@ -133,7 +133,7 @@ final class DestinationRenderer
      * rather than at the redirect: `javascript:` and `data:` in a Location header are
      * an attack, and a code that carries one must never reach the database.
      */
-    private function normalizeUrl(string $url): string
+    public function normalizeUrl(string $url): string
     {
         $url = trim($url);
 
@@ -143,7 +143,23 @@ final class DestinationRenderer
             throw new InvalidArgumentException('URL destination is empty or contains illegal characters.');
         }
 
+        // A raw backslash is invalid in a URL and the parsers disagree about it: PHP
+        // reads `https://evil.test\\@safe.test/` as host safe.test, while a browser
+        // follows WHATWG and treats the backslash as a slash, making the host
+        // evil.test. Anything checking one and navigating to the other is a hole, so
+        // neither gets the chance.
+        if (str_contains($url, '\\')) {
+            throw new InvalidArgumentException('URL destination contains a backslash.');
+        }
+
         $parts = $this->parts($url);
+
+        // Userinfo in the authority is the oldest phishing disguise there is —
+        // https://bank.co.id@evil.test reads as the bank to a human — and no QR
+        // destination needs it. An `@` later in the path (/@handle) is untouched.
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            throw new InvalidArgumentException('URL destination must not carry userinfo.');
+        }
 
         if (! isset($parts['scheme'])) {
             // parse_url already reads `example.com:8080/menu` as host+port, so only a
