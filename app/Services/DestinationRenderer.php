@@ -154,6 +154,19 @@ final class DestinationRenderer
 
         $parts = $this->parts($url);
 
+        if (! isset($parts['scheme'])) {
+            // parse_url already reads `example.com:8080/menu` as host+port, so only a
+            // genuinely scheme-less URL lands here.
+            $url = str_starts_with($url, '//') ? 'https:'.$url : 'https://'.$url;
+            $parts = $this->parts($url);
+        }
+
+        // Both authority guards run AFTER the scheme is settled, and that ordering is
+        // the whole point: for scheme-less input parse_url puts the entire authority
+        // into `path` and leaves `host` unset, so checking first passed
+        // `good.test@evil.test/login` straight through and only the re-parse below
+        // ever saw it as userinfo.
+
         // Userinfo in the authority is the oldest phishing disguise there is —
         // https://bank.co.id@evil.test reads as the bank to a human — and no QR
         // destination needs it. An `@` later in the path (/@handle) is untouched.
@@ -161,11 +174,11 @@ final class DestinationRenderer
             throw new InvalidArgumentException('URL destination must not carry userinfo.');
         }
 
-        if (! isset($parts['scheme'])) {
-            // parse_url already reads `example.com:8080/menu` as host+port, so only a
-            // genuinely scheme-less URL lands here.
-            $url = str_starts_with($url, '//') ? 'https:'.$url : 'https://'.$url;
-            $parts = $this->parts($url);
+        // Same disagreement, third form: PHP keeps `%65vil.test` escaped and a browser
+        // decodes it to `evil.test`. Refused on write so it never becomes a row the
+        // splash has to name, rather than a code that dead-ends at scan time.
+        if (str_contains((string) ($parts['host'] ?? ''), '%')) {
+            throw new InvalidArgumentException('URL destination has a percent-escape in its host.');
         }
 
         $scheme = strtolower((string) ($parts['scheme'] ?? ''));

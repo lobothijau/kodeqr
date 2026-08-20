@@ -93,11 +93,10 @@ final class RedirectController extends Controller
             // recorded before the cap is judged, because the counter that judges it
             // is incremented by the same call that records: a scan over the cap still
             // happened, and the owner should see the demand they are turning away.
-            // Named for what it changes, not for the plan behind it: an owner whose
-            // scans are not recorded is an existing customer to invite back in, not a
-            // prospect to sell to. The plan that produces it stays in config.
-            $managed = ($code['records_scans'] ?? true) === false;
-            $count = $managed ? null : $this->record($request, $slug, $code);
+            // Named for what it changes, not for the plan behind it (constraint 7):
+            // the plan that produces it stays in config.
+            $recordsScans = ($code['records_scans'] ?? true) !== false;
+            $count = $recordsScans ? $this->record($request, $slug, $code) : null;
 
             if ($this->isOverQuota($code, $count)) {
                 return $this->page('inactive', SymfonyResponse::HTTP_GONE);
@@ -108,7 +107,7 @@ final class RedirectController extends Controller
             // through this route — a second pass here would count every free scan
             // twice.
             if (($code['interstitial'] ?? false) === true) {
-                return $this->splash($destination, $managed);
+                return $this->splash($destination);
             }
 
             return $this->destination($destination);
@@ -368,6 +367,13 @@ final class RedirectController extends Controller
             return false;
         }
 
+        // A percent-escape in the authority is the same disagreement in a third form:
+        // PHP hands back `%65vil.test` and a browser decodes it to `evil.test`, so the
+        // splash would name a host nobody is going to. No real hostname contains one.
+        if (str_contains((string) ($parts['host'] ?? ''), '%')) {
+            return false;
+        }
+
         if (! in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
             return false;
         }
@@ -391,18 +397,66 @@ final class RedirectController extends Controller
     /**
      * The free-tier and lapsed interstitial.
      *
-     * The host is shown because a scanner deserves to know where a piece of printed
-     * paper is about to send them — it is the only moment in the whole flow where
-     * someone can still decline. `no-store` for the same reason as the 302: a cached
-     * splash keeps naming the old destination after an edit.
+     * The destination is shown because a scanner deserves to know where a piece of
+     * printed paper is about to send them — it is the only moment in the whole flow
+     * where someone can still decline. `no-store` for the same reason as the 302: a
+     * cached splash keeps naming the old destination after an edit.
+     *
+     * Split rather than printed whole. The host is the trust signal and is rendered
+     * to dominate; the path follows it, quieter, because on this product the host
+     * alone routinely says nothing — an Indonesian small business points its code at
+     * instagram.com, wa.me, shopee.co.id or a Google Form, and every shop on the
+     * street collapses to the same three hosts. The path is what distinguishes them.
+     *
+     * The order is the security property: an attacker controls the path and not the
+     * host, so a path long enough to push the host out of view, or shaped to read
+     * like one (evil.example/kodeqr.com/masuk), must never be the first thing the eye
+     * lands on. Truncated here as well as clamped in CSS so a kilobyte of query
+     * string cannot be used to bury what sits above it.
      */
-    private function splash(string $destination, bool $managed): Response
+    private function splash(string $destination): Response
     {
+        $parts = parse_url($destination);
+
+        $host = (string) ($parts['host'] ?? '');
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+
+        // Punycode, the way a browser's address bar shows it. A homograph host
+        // (kоdeqr.com with a Cyrillic о) passes every other guard on this path and
+        // would render as an apparently-legitimate domain in the bold span directly
+        // under a wordmark that now reads kodeqr.com. Ugly beats plausible here.
+        // Best-effort: without ext-intl the raw host is still safer than no page.
+        if (function_exists('idn_to_ascii')) {
+            $ascii = idn_to_ascii($host, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+
+            if (is_string($ascii) && $ascii !== '') {
+                $host = $ascii;
+            }
+        }
+
+        // The port is part of the authority and is displayed with it: dropping it
+        // named `toko.example` for a link going to `toko.example:8443`, a different
+        // origin on the one page whose promise is that what it shows is where you are
+        // going. A DEFAULT port is the opposite mistake — no browser shows `:443`, so
+        // printing it puts suspicious noise on the trust line.
+        $port = $parts['port'] ?? null;
+
+        if ($port !== null && ! ($scheme === 'https' && $port === 443) && ! ($scheme === 'http' && $port === 80)) {
+            $host .= ':'.$port;
+        }
+
+        $path = ($parts['path'] ?? '')
+            .(isset($parts['query']) ? '?'.$parts['query'] : '')
+            .(isset($parts['fragment']) ? '#'.$parts['fragment'] : '');
+
         return response()
             ->view('redirect.splash', [
                 'destination' => $destination,
-                'host' => (string) parse_url($destination, PHP_URL_HOST),
-                'managed' => $managed,
+                'host' => $host,
+                // A bare "/" is not information, and it makes the host look truncated.
+                // A single glyph, matching the one CSS draws when the clamp bites, so
+                // the two truncations cannot be told apart.
+                'path' => $path === '/' ? '' : Str::limit($path, 96, '…'),
             ])
             ->header('Cache-Control', 'no-store')
             ->header('Referrer-Policy', 'no-referrer');

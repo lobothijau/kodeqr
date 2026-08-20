@@ -30,19 +30,24 @@ return [
     /*
      * The interstitial. It names the destination host because a scanner deserves to
      * know where a piece of printed paper is about to send them.
-     *
-     * `managed` is what a lapsed owner's code shows instead of the free-tier CTA. It
-     * says nothing about expiry or money: the reader is almost always the owner's
-     * customer, not the owner, and "your package has expired" told to a restaurant's
-     * diners is both nonsense to them and embarrassing for the restaurant. The owner
-     * recognises it as a way back in; nobody else reads anything into it.
      */
     'splash' => [
         'title' => 'Anda akan diarahkan ke',
-        'action' => 'Lanjutkan',
-        'cta' => 'Buat QR gratis di :brand',
-        'managed' => 'Dikelola dengan :brand — masuk untuk mengelola QR ini',
+        // Only ever read by someone whose browser did not follow the redirect, so it
+        // names the thing to do rather than framing a choice they did not get.
+        'action' => 'Buka tautan',
     ],
 
-    'footer' => 'Powered by :brand',
+    /*
+     * One footer, every page, no per-plan variant. Whoever is reading any of these
+     * is holding a phone in front of someone else's printed paper — they are never
+     * the owner, so a line addressed to the owner ("masuk untuk mengelola QR ini")
+     * is read by nobody, and a line about the owner's billing is worse than read by
+     * nobody. That leaves the only sentence that is true for every reader of every
+     * one of these pages: they could have one of these themselves.
+     *
+     * The lapsed owner's way back in is email and the dashboard (M3), not a footer
+     * their customers are the ones looking at.
+     */
+    'footer' => 'Buat QR gratis di :brand',
 ];
