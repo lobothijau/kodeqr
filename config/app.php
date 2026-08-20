@@ -69,6 +69,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Everything is stored in UTC and grouped or rendered in this zone. Day
+    | buckets — unique-scanner-per-day, heatmaps, daily aggregates — must all
+    | agree on where a day starts, and for an Indonesian product that is WIB,
+    | not 07:00 WIB where a UTC day rolls over.
+    |
+    */
+
+    'display_timezone' => 'Asia/Jakarta',
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

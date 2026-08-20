@@ -285,7 +285,13 @@ final class RedirectController extends Controller
             ?? $request->server->get('REMOTE_ADDR')
             ?? '';
 
-        return hash('sha256', now()->format('Y-m-d').config('app.key').$ip);
+        // A WIB day, not a UTC one. The hash is the day bucket every unique-scanner
+        // count is built on, and a UTC bucket would roll over at 07:00 Jakarta —
+        // splitting one person's morning and afternoon scans into two "uniques" and
+        // never matching the WIB days the dashboards group by.
+        $day = now()->timezone((string) config('app.display_timezone'))->format('Y-m-d');
+
+        return hash('sha256', $day.config('app.key').$ip);
     }
 
     private function header(?string $value): ?string

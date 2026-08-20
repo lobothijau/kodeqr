@@ -100,7 +100,9 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.4'
-          extensions: pdo_mysql
+          # redis is not enabled by default, and REDIS_CLIENT is phpredis: without
+          # it every scan-buffer test skips and --fail-on-skipped fails the build.
+          extensions: pdo_mysql, redis
           tools: composer:v2
           coverage: none
 

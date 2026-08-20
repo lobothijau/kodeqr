@@ -51,6 +51,17 @@ function bufferedScans(): array
     return array_map(fn (string $json): array => json_decode($json, true), is_array($entries) ? $entries : []);
 }
 
+/**
+ * The day in the salt is a WIB day, not a UTC one — asserting against the UTC date
+ * would pass for seventeen hours and fail between midnight and 07:00 Jakarta.
+ */
+function expectedIpHash(string $ip): string
+{
+    $day = now()->timezone((string) config('app.display_timezone'))->format('Y-m-d');
+
+    return hash('sha256', $day.config('app.key').$ip);
+}
+
 function scanCode(int $scanCount = 0, QrCodeStatus $status = QrCodeStatus::Active, ?Plan $plan = null): QrCode
 {
     $user = User::factory()->create();
@@ -123,7 +134,18 @@ it('hashes the Cloudflare address rather than the socket address', function () {
     // Cloudflare's, and hashing it would collapse a whole city into one scanner.
     expect($hashes[0])->not->toBe($hashes[1])
         ->and($hashes[2])->not->toBe($hashes[0])
-        ->and($hashes[2])->toBe(hash('sha256', now()->format('Y-m-d').config('app.key').'127.0.0.1'));
+        ->and($hashes[2])->toBe(expectedIpHash('127.0.0.1'));
+})->skip(skipWithoutRedis(...), 'Redis not reachable.');
+
+it('buckets the ip hash by Jakarta day, not UTC day', function () {
+    $code = scanCode();
+
+    // 23:30 WIB is already the next UTC day. A UTC bucket would split one evening's
+    // scanner across two days and never line up with the dashboards.
+    $this->travelTo(now()->timezone('Asia/Jakarta')->setTime(23, 30));
+    $this->get("/x/{$code->slug}", ['CF-Connecting-IP' => '203.0.113.77']);
+
+    expect(bufferedScans()[0]['ip_hash'])->toBe(expectedIpHash('203.0.113.77'));
 })->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('rotates the ip hash daily so scanners cannot be joined across days', function () {
@@ -282,8 +304,7 @@ it('ignores a forwarded-for header a direct-origin client could forge', function
     // The only request that reaches the fallback is the one that bypassed the edge,
     // so its own headers are the last thing to believe. The socket peer is the
     // fallback, not $request->ip().
-    expect(bufferedScans()[0]['ip_hash'])
-        ->toBe(hash('sha256', now()->format('Y-m-d').config('app.key').'127.0.0.1'));
+    expect(bufferedScans()[0]['ip_hash'])->toBe(expectedIpHash('127.0.0.1'));
 })->skip(skipWithoutRedis(...), 'Redis not reachable.');
 
 it('does not flag a code whose owner upgraded before the job ran', function () {
