@@ -37,6 +37,9 @@ it('normalizes every shape an Indonesian phone number arrives in', function (str
     // 00 is the international dial prefix. Stripping it AFTER the leading-zero rule
     // would turn 0062... into 62062..., a number that does not exist.
     'international prefix' => ['006281234567', '6281234567'],
+    // 00 says the country code is already there, so the domestic 8-rule must not
+    // reach it — 008190… is Japan, and 628190… is an Indonesian stranger.
+    'international prefix, foreign' => ['008190123456', '8190123456'],
     'parentheses' => ['(0812) 3456-789', '628123456789'],
 ]);
 

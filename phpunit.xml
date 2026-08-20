@@ -28,6 +28,10 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!-- The scan buffer and cap counter are real Redis writes. Database 15 keeps
+             a test run out of the developer's working data; ScanBufferTest flushes
+             it, and skips itself when no server answers. -->
+        <env name="REDIS_DB" value="15"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

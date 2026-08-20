@@ -98,8 +98,10 @@ final class DestinationRenderer
     {
         $digits = (string) preg_replace('/\D+/', '', $phone);
 
+        // Typed with the international dial prefix, the number already carries its
+        // own country code — so the domestic rules below must not touch it.
         if (str_starts_with($digits, '00')) {
-            $digits = substr($digits, 2);
+            return $this->checkedPhone(substr($digits, 2));
         }
 
         if (str_starts_with($digits, '0')) {
@@ -112,6 +114,11 @@ final class DestinationRenderer
             $digits = '62'.$digits;
         }
 
+        return $this->checkedPhone($digits);
+    }
+
+    private function checkedPhone(string $digits): string
+    {
         $length = strlen($digits);
 
         if ($length < self::PHONE_MIN_DIGITS || $length > self::PHONE_MAX_DIGITS) {

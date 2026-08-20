@@ -292,6 +292,7 @@ it('refuses to put a non-http destination in a Location header', function (strin
     'file' => ['file:///etc/passwd'],
     'header injection' => ["https://example.test/\r\nSet-Cookie: a=b"],
     'schemeless' => ['example.test/menu'],
+    'no host' => ['http:///etc/passwd'],
 ]);
 
 it('restores a renewed owner without waiting for the cache to expire', function () {

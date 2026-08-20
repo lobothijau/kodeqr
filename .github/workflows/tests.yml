@@ -46,15 +46,29 @@ jobs:
       - name: Run CI Checks
         run: composer ci:check
 
-  # The same suite against the engine production actually runs. Tests carrying
-  # MySQL-only semantics (ascii_bin slug collation, enum rejection, CONVERT_TZ)
-  # skip themselves on SQLite, so without this job they would never execute
-  # anywhere. Runs in parallel with `ci` — neither waits on the other.
+  # The same suite against the engines production actually runs. Tests carrying
+  # MySQL-only semantics (ascii_bin slug collation, enum rejection, CONVERT_TZ) and
+  # the Redis scan buffer skip themselves without those servers, so without this job
+  # they would never execute anywhere. Runs in parallel with `ci` — neither waits on
+  # the other, and `ci` doubles as proof the redirect still works with Redis down.
   mysql:
     name: tests (mysql 8)
     runs-on: ubuntu-latest
 
     services:
+      # The redirect path writes scans to Redis. Without a server here the buffer
+      # tests skip, and --fail-on-skipped below turns that into a red build — which
+      # is the point: this is the leg that runs against what production runs.
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
       mysql:
         image: mysql:8.0
         env:

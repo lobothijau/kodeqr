@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\QrCodeStatus;
+use App\Jobs\FlagQrCodeOverQuota;
 use App\Models\QrCode;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Throwable;
 
@@ -38,7 +43,20 @@ final class RedirectController extends Controller
 
     private const MISS = 'miss';
 
-    public function __invoke(string $slug): SymfonyResponse
+    /**
+     * The list M1-T4's processor drains. Named here because the redirect side is the
+     * only writer, and a second name for the same list would silently lose scans.
+     */
+    public const BUFFER_KEY = 'scans:buffer';
+
+    /**
+     * Both the user agent and the referer are truncated to what scan_events.referer
+     * can hold. mb_ so a multibyte UA is cut between characters — a half character
+     * is invalid UTF-8, and json_encode answers that with `false`, not an exception.
+     */
+    private const HEADER_LIMIT = 255;
+
+    public function __invoke(Request $request, string $slug): SymfonyResponse
     {
         // The whole body, not just the lookup: a payload whose shape drifted across a
         // deploy would otherwise throw on array access and 500 at printed paper (I2).
@@ -69,6 +87,15 @@ final class RedirectController extends Controller
                 return $this->page('unavailable');
             }
 
+            // Recorded before the cap is judged, because the counter that judges it
+            // is incremented by the same call that records. A scan over the cap still
+            // happened, and the owner should see the demand they are turning away.
+            $count = $this->record($request, $slug, $code);
+
+            if ($this->isOverQuota($code, $count)) {
+                return $this->page('inactive', SymfonyResponse::HTTP_GONE);
+            }
+
             return $this->destination($destination);
         } catch (Throwable $exception) {
             // Even reporting is best-effort: a full disk must not turn a degraded
@@ -84,14 +111,14 @@ final class RedirectController extends Controller
     }
 
     /**
-     * @return array{dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}|null
+     * @return array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}|null
      */
     private function resolve(string $slug): ?array
     {
         $cached = Cache::get(self::cacheKey($slug));
 
         if (is_array($cached)) {
-            /** @var array{dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed} $cached */
+            /** @var array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed} $cached */
             return $cached;
         }
 
@@ -110,6 +137,7 @@ final class RedirectController extends Controller
         }
 
         $payload = [
+            'qr_id' => $code->id,
             'dest_url' => $code->destination['dest_url'] ?? null,
             'status' => $code->status->value,
             'plan' => $code->user->currentPlan()->value,
@@ -117,9 +145,156 @@ final class RedirectController extends Controller
             'scan_count_key' => "scans:count:{$code->id}",
         ];
 
+        // Before the cache entry is published, not after: any scan that warm-hits in
+        // between would INCR a key that does not exist yet, create it at 1, and the
+        // SETNX would then no-op — handing a code that has used 480 of its 500 scans
+        // a fresh 500. The window is one millisecond wide and reopens at every cache
+        // expiry, which is exactly the kind of thing that is never reproducible.
+        //
+        // SETNX, because a counter that already exists is ahead of the database:
+        // M1-T4's processor writes scan_count a minute behind.
+        $this->seedScanCounter($payload['scan_count_key'], $code->scan_count);
+
         Cache::put(self::cacheKey($slug), $payload, self::CACHE_TTL);
 
         return $payload;
+    }
+
+    /**
+     * Fire-and-forget scan capture (I3): the counter the cap is judged against, and
+     * the payload M1-T4's processor drains. Two commands, no MySQL, nothing the
+     * scanner waits on beyond the round-trips themselves.
+     *
+     * Every failure mode ends the same way — return null, log, let the scanner
+     * through. A dead buffer must never become a dead code (I2).
+     *
+     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}  $code
+     * @return int|null the scan count after this scan, or null when it could not be counted
+     */
+    private function record(Request $request, string $slug, array $code): ?int
+    {
+        $qrId = $code['qr_id'] ?? null;
+        $countKey = $code['scan_count_key'] ?? null;
+
+        // A payload cached before this task shipped has neither. Skipping the write
+        // loses that entry's scans for up to six hours; guessing the key would count
+        // them against the wrong code.
+        if (! is_string($qrId) || $qrId === '' || ! is_string($countKey) || $countKey === '') {
+            return null;
+        }
+
+        $count = null;
+
+        try {
+            $payload = json_encode([
+                // 26 chars. Str::uuid() is 36 and scan_events.event_uuid is char(26),
+                // so a uuid here means M1-T4's chunk is rejected by strict mode.
+                'uuid' => (string) Str::ulid(),
+                'slug' => $slug,
+                'qr_id' => $qrId,
+                't' => now()->timestamp,
+                'ip_hash' => $this->ipHash($request),
+                'ua' => $this->header($request->userAgent()),
+                'ref' => $this->header($request->headers->get('referer')),
+            ], JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            if ($payload === false) {
+                return null;
+            }
+
+            // Counter first, and assigned outside the try, so a failure of the second
+            // command loses only the analytics event. Returning null here instead
+            // would let the crossing scan through, and every later scan is already
+            // past cap + 1 — so the row would never be flipped at all. Both commands
+            // still sit under the one try/catch: covering only the rpush would let a
+            // dead counter 500 at a scanner.
+            $count = Redis::connection()->incr($countKey);
+            Redis::connection()->rpush(self::BUFFER_KEY, $payload);
+        } catch (Throwable $exception) {
+            Log::warning('Scan buffer write failed.', [
+                'slug' => $slug,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+
+        return is_int($count) ? $count : null;
+    }
+
+    /**
+     * Fails open on purpose: an uncounted scan (Redis down, a pre-M1-T3 cache entry)
+     * redirects. Constraint 8 says a scanner never hits a dead end, and refusing one
+     * because our own counter is unavailable is exactly that.
+     *
+     * @param  array{qr_id: mixed, dest_url: mixed, status: mixed, plan: mixed, scan_cap: mixed, scan_count_key: mixed}  $code
+     */
+    private function isOverQuota(array $code, ?int $count): bool
+    {
+        $cap = $code['scan_cap'] ?? null;
+
+        if (! is_int($cap) || $count === null || $count <= $cap) {
+            return false;
+        }
+
+        // INCR is atomic, so exactly one request in a flood sees the crossing and
+        // exactly one job is queued — not one per scan for as long as the flood runs.
+        if ($count === $cap + 1 && is_string($code['qr_id'])) {
+            // The dashboard row is the least important thing on this path. A queue
+            // that is down (or a Valkey outage taking the queue with it) must not
+            // throw into the outer catch and replace this scanner's correct 410 with
+            // the generic unavailable page.
+            try {
+                FlagQrCodeOverQuota::dispatch($code['qr_id']);
+            } catch (Throwable $exception) {
+                Log::warning('Over-quota flag dispatch failed.', [
+                    'qr_id' => $code['qr_id'],
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return true;
+    }
+
+    private function seedScanCounter(string $key, int $scanCount): void
+    {
+        try {
+            Redis::connection()->setnx($key, $scanCount);
+        } catch (Throwable $exception) {
+            Log::warning('Scan counter seed failed.', [
+                'key' => $key,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Constraint 3, and the only place a raw address appears at all: it lives in a
+     * local for the length of one hash and is never written, queued or logged. The
+     * date makes the hash a rotating salt, so yesterday's scanner cannot be joined
+     * to today's.
+     */
+    private function ipHash(Request $request): string
+    {
+        // Cloudflare's header first: behind an orange cloud that is the visitor.
+        // The fallback is the socket peer, deliberately NOT $request->ip(): with
+        // trustProxies(at: '*') that reads X-Forwarded-For, which any client hitting
+        // the origin directly can write. The one request that reaches the fallback is
+        // by definition the one that bypassed the edge, so its own header is the last
+        // thing to believe.
+        $ip = $request->headers->get('CF-Connecting-IP')
+            ?? $request->server->get('REMOTE_ADDR')
+            ?? '';
+
+        return hash('sha256', now()->format('Y-m-d').config('app.key').$ip);
+    }
+
+    private function header(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return mb_substr($value, 0, self::HEADER_LIMIT);
     }
 
     private function isSafeDestination(string $url): bool
@@ -128,7 +303,13 @@ final class RedirectController extends Controller
             return false;
         }
 
-        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true);
+        if (! in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+            return false;
+        }
+
+        // A stored `http:///etc/passwd` has a scheme and no authority. The renderer
+        // refuses it on write; this is the guard for rows it never saw.
+        return is_string(parse_url($url, PHP_URL_HOST)) && parse_url($url, PHP_URL_HOST) !== '';
     }
 
     /**
