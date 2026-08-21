@@ -208,3 +208,36 @@ it('paints one canvas everywhere it is hardcoded', function () {
     expect($root)->toContain("background-color: {$canvas};")
         ->and($root)->toContain("<meta name=\"theme-color\" content=\"{$canvas}\">");
 });
+
+/*
+ * The canvas is not the only colour duplicated into the build-step-free Blade pages:
+ * --brand is too. The failure mode is the next palette change, where --primary moves
+ * in app.css, the suite stays green, and the page constraint 8 promises a scanner
+ * always sees keeps a stale brand — on printed paper somebody is standing in front of.
+ */
+it('carries one brand colour into the pages that have no stylesheet', function () {
+    preg_match(
+        '/--primary:\s*hsl\(([^)]+)\)/',
+        (string) file_get_contents(resource_path('css/app.css')),
+        $token,
+    );
+
+    expect($token[1] ?? null)->not->toBeNull();
+
+    [$h, $s, $l] = array_map(
+        static fn (string $part): float => (float) rtrim($part, '%'),
+        preg_split('/\s+/', trim($token[1])) ?: [],
+    );
+
+    $brand = hslToHex($h, $s, $l);
+
+    $missing = array_values(array_filter(
+        ['views/redirect/layout.blade.php', 'views/abuse/report.blade.php'],
+        static fn (string $site): bool => ! str_contains(
+            strtolower((string) file_get_contents(resource_path($site))),
+            "--brand: {$brand}",
+        ),
+    ));
+
+    expect($missing)->toBe([]);
+});

@@ -10,13 +10,13 @@
         <meta http-equiv="refresh" content="{{ $refreshAfter }};url={{ $refreshTo }}">
     @endisset
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#f4f2ed">
+    <meta name="theme-color" content="#e9e3d6">
     <title>{{ $title }} · kodeqr</title>
     <style>
         :root {
-            --bg: #f4f2ed; --surface: #fbfaf7; --fg: #1c1a17; --muted: #6f6a61;
-            --line: #e4e0d8; --brand: #1c1a17;
-            --tone-bg: #edeae3; --tone-fg: #6f6a61;
+            --bg: #e9e3d6; --surface: #fdfcf8; --fg: #1b1f1a; --muted: #615f54;
+            --line: #d7cfbd; --brand: #25493a;
+            --tone-bg: #e1dac9; --tone-fg: #615f54;
         }
         .tone-warning { --tone-bg: #f7ebd3; --tone-fg: #8a5a11; }
         .tone-danger  { --tone-bg: #f7e1dc; --tone-fg: #98362a; }

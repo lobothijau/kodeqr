@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light">
-        <meta name="theme-color" content="#f4f2ed">
+        <meta name="theme-color" content="#e9e3d6">
 
         {{-- Paints the canvas before app.css arrives, and covers overscroll past the
              body. Must stay in step with --background in resources/css/app.css: if
@@ -12,7 +12,7 @@
              a mismatched band when the page is dragged past its end. --}}
         <style>
             html {
-                background-color: #f4f2ed;
+                background-color: #e9e3d6;
             }
         </style>
 

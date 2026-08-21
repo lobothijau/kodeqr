@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#f4f2ed">
+    <meta name="theme-color" content="#e9e3d6">
     <title>{{ __('abuse.title') }} · kodeqr</title>
     <style>
         {{-- Same tokens as redirect.layout, kept separate on purpose: that layout is
              on the scan path and every rule added to it is downloaded by every free
              scan. Form styling has no business there. --}}
         :root {
-            --bg: #f4f2ed; --surface: #fbfaf7; --fg: #1c1a17; --muted: #6f6a61;
-            --line: #e4e0d8; --brand: #1c1a17; --danger: #98362a; --danger-bg: #f7e1dc;
+            --bg: #e9e3d6; --surface: #fdfcf8; --fg: #1b1f1a; --muted: #615f54;
+            --line: #d7cfbd; --brand: #25493a; --danger: #98362a; --danger-bg: #f7e1dc;
         }
         *, *::before, *::after { box-sizing: border-box; }
         html { -webkit-text-size-adjust: 100%; }

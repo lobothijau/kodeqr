@@ -61,6 +61,12 @@
     --color-input: var(--input);
     --color-ring: var(--ring);
 
+    --color-nav: var(--nav);
+    --color-nav-foreground: var(--nav-foreground);
+    --color-nav-overlay: var(--nav-overlay);
+    --color-nav-overlay-strong: var(--nav-overlay-strong);
+    --color-nav-ring: var(--nav-ring);
+
     --color-success: var(--success);
     --color-success-surface: var(--success-surface);
     --color-success-border: var(--success-border);
@@ -125,25 +131,46 @@
      * Keep --background in step with the inline html background in
      * resources/views/app.blade.php.
      */
-    --background: hsl(42.9 24.1% 94.3%);
-    --foreground: hsl(36 9.8% 10%);
-    --card: hsl(45 33.3% 97.6%);
-    --card-foreground: hsl(36 9.8% 10%);
-    --popover: hsl(45 33.3% 97.6%);
-    --popover-foreground: hsl(36 9.8% 10%);
-    --primary: hsl(36 9.8% 10%);
-    --primary-foreground: hsl(45 33.3% 97.6%);
-    --secondary: hsl(41.5 22.8% 88.8%);
-    --secondary-foreground: hsl(36 9.8% 10%);
-    --muted: hsl(42 21.7% 91%);
-    --muted-foreground: hsl(38.6 6.7% 40.8%);
-    --accent: hsl(42 21.7% 91%);
-    --accent-foreground: hsl(36 9.8% 10%);
+    --background: hsl(41.1 30.2% 87.6%);
+    --foreground: hsl(108 8.8% 11.2%);
+    --card: hsl(48 55.6% 98.2%);
+    --card-foreground: hsl(108 8.8% 11.2%);
+    --popover: hsl(48 55.6% 98.2%);
+    --popover-foreground: hsl(108 8.8% 11.2%);
+    --primary: hsl(155 32.7% 21.6%);
+    --primary-foreground: hsl(130 21.4% 94.5%);
+    --secondary: hsl(42.2 28.4% 81.4%);
+    --secondary-foreground: hsl(108 8.8% 11.2%);
+    --muted: hsl(42.5 28.6% 83.5%);
+    --muted-foreground: hsl(50.8 8.2% 31.2%);
+    --accent: hsl(42.5 28.6% 83.5%);
+    --accent-foreground: hsl(108 8.8% 11.2%);
     --destructive: hsl(6.5 56.7% 38%);
-    --destructive-foreground: hsl(45 33.3% 97.6%);
-    --border: hsl(40 18.2% 87.1%);
-    --input: hsl(41.2 19% 83.5%);
-    --ring: hsl(36 9.8% 10%);
+    --destructive-foreground: hsl(48 55.6% 98.2%);
+    --border: hsl(41.5 24.5% 79.2%);
+    --input: hsl(40.4 20.8% 51%);
+    --ring: hsl(155 32.7% 21.6%);
+
+    /*
+     * The navbar band. Its own tokens rather than reusing --primary, because the
+     * band and the primary button only happen to share a colour today; if one moves
+     * the other should not follow by accident.
+     */
+    --nav: hsl(155 32.7% 21.6%);
+    --nav-foreground: hsl(133.3 23.1% 92.4%);
+
+    /*
+     * States on the band are alpha overlays, not solid colours: a solid would have to
+     * be re-picked every time --nav moves. What they encode is "the band is dark", so
+     * they live here beside the colour that makes it true — lighten --nav past about
+     * 50% and these invert in meaning.
+     *
+     * --ring must NOT be used on the band. It is the pine brand, so a ring on the
+     * band composites pine over pine: 1.00:1, no visible focus at all.
+     */
+    --nav-overlay: hsl(0 0% 100% / 0.1);
+    --nav-overlay-strong: hsl(0 0% 100% / 0.2);
+    --nav-ring: hsl(0 0% 100% / 0.7);
 
     /*
      * Status colours, named once. The pills used to hardcode emerald/amber/red with
@@ -154,6 +181,22 @@
      * Measured contrast of each foreground on its own surface: success 5.42:1,
      * warning 5.00:1, danger 5.80:1. All clear WCAG AA — but warning has the least
      * headroom of the three, so darken it before lightening its surface.
+     *
+     * The tightest pair in the palette is not in this table: it is the NEUTRAL status
+     * pill, --muted-foreground on --muted, at 5.46:1. That is the default state of
+     * nearly every code on the list, so re-measure it before nudging either token.
+     *
+     * --success is NOT used for the `active` status pill, and must not be restored
+     * there. The reason is SHARED HUE, not a contrast ratio: success and the pine
+     * brand are both greens at nearly the same lightness, so a green "Aktif" badge
+     * reads as part of the navbar rather than as a status.
+     *
+     * Stating it as a ratio would be wrong and actively misleading — danger measures
+     * 1.38:1 against pine and warning 1.70:1, both at or below success's 1.57:1, and
+     * both are kept precisely because their hues separate cleanly from green.
+     *
+     * --success survives for genuine success feedback (the copy confirmation, toasts),
+     * where nothing sits beside the brand.
      */
     --success: hsl(136 39% 30.2%);
     --success-surface: hsl(100 27.3% 91.4%);
@@ -178,15 +221,15 @@
      * components in the cleanup already logged in docs/BACKLOG.md; retuned rather
      * than deleted so the two halves never disagree in the meantime.
      */
-    --sidebar-background: hsl(45 33.3% 97.6%);
-    --sidebar-foreground: hsl(38.6 6.7% 40.8%);
-    --sidebar-primary: hsl(36 9.8% 10%);
-    --sidebar-primary-foreground: hsl(45 33.3% 97.6%);
-    --sidebar-accent: hsl(42 21.7% 91%);
-    --sidebar-accent-foreground: hsl(36 9.8% 10%);
-    --sidebar-border: hsl(40 18.2% 87.1%);
-    --sidebar-ring: hsl(36 9.8% 10%);
-    --sidebar: hsl(45 33.3% 97.6%);
+    --sidebar-background: hsl(48 55.6% 98.2%);
+    --sidebar-foreground: hsl(50.8 7.2% 35.5%);
+    --sidebar-primary: hsl(155 32.7% 21.6%);
+    --sidebar-primary-foreground: hsl(130 21.4% 94.5%);
+    --sidebar-accent: hsl(42.5 28.6% 83.5%);
+    --sidebar-accent-foreground: hsl(108 8.8% 11.2%);
+    --sidebar-border: hsl(41.5 24.5% 79.2%);
+    --sidebar-ring: hsl(155 32.7% 21.6%);
+    --sidebar: hsl(48 55.6% 98.2%);
 }
 
 @layer base {

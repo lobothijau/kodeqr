@@ -47,7 +47,7 @@ const initials = computed(() =>
 </script>
 
 <template>
-    <header class="border-b border-border bg-background">
+    <header class="bg-nav text-nav-foreground">
         <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between gap-4">
                 <div class="flex items-center gap-8">
@@ -56,10 +56,10 @@ const initials = computed(() =>
                         class="flex items-center gap-2"
                     >
                         <AppLogoIcon
-                            class="size-6 fill-current text-foreground"
+                            class="size-6 fill-current text-nav-foreground"
                         />
                         <span
-                            class="text-base font-semibold tracking-tight text-foreground"
+                            class="text-base font-semibold tracking-tight text-nav-foreground"
                             >kodeqr</span
                         >
                     </Link>
@@ -74,9 +74,10 @@ const initials = computed(() =>
                             "
                             :class="[
                                 'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                                'focus-visible:ring-2 focus-visible:ring-nav-ring focus-visible:outline-none',
                                 isCurrent(item.pattern)
-                                    ? 'bg-muted text-foreground'
-                                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                                    ? 'bg-nav-overlay-strong text-nav-foreground'
+                                    : 'text-nav-foreground/70 hover:bg-nav-overlay hover:text-nav-foreground',
                             ]"
                         >
                             {{ item.label }}
@@ -89,13 +90,14 @@ const initials = computed(() =>
                         <DropdownMenuTrigger as-child>
                             <button
                                 type="button"
-                                class="flex items-center rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                class="flex items-center rounded-full focus-visible:ring-2 focus-visible:ring-nav-ring focus-visible:outline-none"
                             >
                                 <span class="sr-only">Buka menu akun</span>
-                                <Avatar class="size-8">
-                                    <AvatarFallback class="text-xs">{{
-                                        initials
-                                    }}</AvatarFallback>
+                                <Avatar class="size-8 bg-nav-overlay-strong">
+                                    <AvatarFallback
+                                        class="bg-transparent text-xs text-nav-foreground"
+                                        >{{ initials }}</AvatarFallback
+                                    >
                                 </Avatar>
                             </button>
                         </DropdownMenuTrigger>
@@ -107,7 +109,7 @@ const initials = computed(() =>
                     <Button
                         variant="ghost"
                         size="icon"
-                        class="sm:hidden"
+                        class="text-nav-foreground hover:bg-nav-overlay-strong hover:text-nav-foreground focus-visible:ring-nav-ring sm:hidden"
                         :aria-expanded="mobileOpen"
                         aria-controls="mobile-navigation"
                         @click="mobileOpen = !mobileOpen"
@@ -129,7 +131,7 @@ const initials = computed(() =>
         <nav
             v-if="mobileOpen"
             id="mobile-navigation"
-            class="border-t border-border sm:hidden"
+            class="border-t border-nav-overlay-strong sm:hidden"
         >
             <div class="space-y-1 px-4 py-3">
                 <Link
@@ -139,9 +141,10 @@ const initials = computed(() =>
                     :aria-current="isCurrent(item.pattern) ? 'page' : undefined"
                     :class="[
                         'block rounded-md px-3 py-2 text-base font-medium',
+                        'focus-visible:ring-2 focus-visible:ring-nav-ring focus-visible:outline-none',
                         isCurrent(item.pattern)
-                            ? 'bg-muted text-foreground'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                            ? 'bg-nav-overlay-strong text-nav-foreground'
+                            : 'text-nav-foreground/70 hover:bg-nav-overlay hover:text-nav-foreground',
                     ]"
                 >
                     {{ item.label }}

@@ -65,11 +65,20 @@ const quotaFraction = computed(() => {
 // `over_quota` a billing one — neither is undone from this screen.
 const pausable = (status: Status) => status === 'active' || status === 'paused';
 
-// Semantic tokens, not raw palette: emerald/amber/red read cold against the warm
-// canvas, and picking them per call site is how the same status ends up two
-// different colours on two different screens.
+/*
+ * Semantic tokens, not raw palette — picking colours per call site is how one status
+ * ends up two different colours on two different screens.
+ *
+ * `active` is deliberately NEUTRAL and must not go back to green. Two reasons, and
+ * either alone would be enough. The success green shares its HUE with the pine brand
+ * at nearly the same lightness, so a green badge reads as part of the navbar rather
+ * than as a status — note that is a hue argument, not a contrast one; amber and red
+ * sit at similar ratios to pine and are kept precisely because their hues separate.
+ * And nearly every code is active, so colouring the default state spends attention on
+ * the one thing that never needs it. Colour is for states an owner must act on.
+ */
 const statusClass: Record<Status, string> = {
-    active: 'border-success-border bg-success-surface text-success',
+    active: 'border-border bg-muted text-muted-foreground',
     paused: 'border-warning-border bg-warning-surface text-warning',
     blocked: 'border-danger-border bg-danger-surface text-danger',
     over_quota: 'border-danger-border bg-danger-surface text-danger',
