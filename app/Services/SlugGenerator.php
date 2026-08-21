@@ -26,6 +26,12 @@ class SlugGenerator
     public const LENGTH = 6;
 
     /**
+     * The router's constraint, and anything else that has to recognise a slug. Kept
+     * here so a second reader of the alphabet cannot drift from the writer of it.
+     */
+    public const PATTERN = '[2-9A-HJKMNP-Za-hjkmnp-z]{6,8}';
+
+    /**
      * Five collisions in a row against a table this sparse means the assumption is
      * wrong, not that we were unlucky. Widening to 7 chars (54^7, 2.1 bits more) costs
      * nothing — the /x/{slug} route already accepts {6,8}.

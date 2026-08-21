@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AbuseReason;
 use App\Enums\AbuseSource;
+use App\Enums\QrCodeStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,10 +21,13 @@ use Illuminate\Support\Carbon;
  * @property string $url
  * @property AbuseSource $source
  * @property string|null $threat_type
+ * @property AbuseReason|null $reason
+ * @property string|null $reporter_email
+ * @property QrCodeStatus|null $previous_status
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['qr_code_id', 'url', 'source', 'threat_type'])]
+#[Fillable(['qr_code_id', 'url', 'source', 'threat_type', 'reason', 'reporter_email', 'previous_status'])]
 class AbuseFlag extends Model
 {
     /**
@@ -30,14 +35,25 @@ class AbuseFlag extends Model
      */
     protected function casts(): array
     {
-        return ['source' => AbuseSource::class];
+        return [
+            'source' => AbuseSource::class,
+            'reason' => AbuseReason::class,
+            'previous_status' => QrCodeStatus::class,
+        ];
     }
 
     /**
+     * Trashed codes included.
+     *
+     * A report can name a soft-deleted code — the lookup that matched it used
+     * `withTrashed()` — so a relation that hid them handed the operator "matches a
+     * code: yes" with no destination, no status and no command to run. An email
+     * nobody can act on is the same as no email.
+     *
      * @return BelongsTo<QrCode, $this>
      */
     public function qrCode(): BelongsTo
     {
-        return $this->belongsTo(QrCode::class);
+        return $this->belongsTo(QrCode::class)->withTrashed();
     }
 }

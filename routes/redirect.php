@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\RedirectController;
+use App\Services\SlugGenerator;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,5 +27,5 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/x/{slug}', RedirectController::class)
-    ->where('slug', '[2-9A-HJKMNP-Za-hjkmnp-z]{6,8}')
+    ->where('slug', SlugGenerator::PATTERN)
     ->name('redirect.show');

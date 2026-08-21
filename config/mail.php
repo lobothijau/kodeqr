@@ -110,6 +110,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Abuse Report Address
+    |--------------------------------------------------------------------------
+    |
+    | Where M1-T7's public /laporkan form sends its reports. Falls back to the
+    | from-address so a missing env var degrades to a mailbox somebody reads,
+    | rather than throwing inside a queued job nobody is watching.
+    |
+    */
+
+    'abuse' => [
+        'address' => env('MAIL_ABUSE_ADDRESS', env('MAIL_FROM_ADDRESS', 'abuse@kodeqr.com')),
+    ],
+
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
