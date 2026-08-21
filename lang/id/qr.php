@@ -70,4 +70,27 @@ return [
      * to somebody we want back.
      */
     'lapsed' => 'Paket Anda sudah berakhir. QR yang sudah ada tetap berfungsi, tetapi untuk membuat atau mengubah kode, perpanjang paket Anda.',
+
+    /*
+     * Renderer refusals. These reach the owner as validation errors on the builder,
+     * so the offending field is named in their language — the style keys are
+     * English snake_case and `gradient_to` in front of an Indonesian owner reads as
+     * a leaked internal, which is the same defect `status_label` above exists to fix.
+     */
+    'style' => [
+        'foreground' => 'warna kode',
+        'background' => 'warna latar',
+        'gradient_to' => 'warna akhir gradien',
+        'eye_color' => 'warna mata',
+    ],
+
+    'contrast_failed' => 'Kontras terlalu rendah untuk dipindai pada :fields. Pilih warna yang lebih kontras dengan latar.',
+
+    'color_invalid' => 'Nilai :field harus berupa kode heksadesimal enam digit, misalnya #1d4ed8.',
+
+    'logo' => [
+        'unreadable' => 'Berkas logo tidak dapat dibaca.',
+        'unsupported' => 'Logo harus berupa gambar PNG, JPEG atau WebP.',
+        'too_large' => 'Ukuran piksel logo terlalu besar.',
+    ],
 ];

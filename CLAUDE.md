@@ -215,7 +215,7 @@ on — do not "improve" it in a diff.
 | Cache/queue | Valkey (Redis) + Laravel queues | Buffer list `scans:buffer` |
 | Files | Cloudflare R2 via S3 driver | Zero-egress; never serve files from app disk |
 | Edge | Cloudflare free, orange-cloud | Real IP = CF-Connecting-IP |
-| QR render | bacon/qr-code (server), qrcode npm (preview only) | Server is canonical |
+| QR render | bacon/bacon-qr-code (server) | Server is canonical; preview calls it too — see below |
 | Geo | GeoLite2-City local mmdb | Weekly geoip:update |
 | Payments | Midtrans Snap, prepaid packages (3/6/12mo) | NO auto-renew, NO grace, NO float money |
 | Threat check | Cloudflare security resolver (DoH) | No Google Cloud services: see .ai/rules/general.md |
