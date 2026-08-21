@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AbuseReportController;
 use App\Http\Controllers\QrCodeController;
+use App\Http\Controllers\QrImageController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -36,6 +37,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('kode', [QrCodeController::class, 'index'])->name('qr-codes.index');
     Route::get('kode/baru', [QrCodeController::class, 'create'])->name('qr-codes.create');
     Route::post('kode', [QrCodeController::class, 'store'])->name('qr-codes.store');
+    /*
+     * Throttled, unlike its siblings: it is the only owner-facing route that does
+     * real CPU work per request (Imagick, ~50ms for a 512px code) and the list asks
+     * for one per card. The PHP worker pool it would exhaust is the same pool
+     * serving /x/{slug}, which constraint 1 says must never hand a scanner a 5xx —
+     * so the cheap page must not be able to starve the one that matters.
+     *
+     * Sized for the page, not the person: 500 codes on Business, plus revalidation
+     * on a reload, plus the builder's preview while somebody drags a colour picker.
+     */
+    Route::get('kode/{qrCode}/gambar', QrImageController::class)
+        ->middleware('throttle:240,1')
+        ->name('qr-codes.image');
     Route::get('kode/{qrCode}/ubah', [QrCodeController::class, 'edit'])->name('qr-codes.edit');
     Route::patch('kode/{qrCode}', [QrCodeController::class, 'update'])->name('qr-codes.update');
     Route::post('kode/{qrCode}/jeda', [QrCodeController::class, 'togglePause'])->name('qr-codes.pause');
