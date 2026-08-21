@@ -148,7 +148,7 @@
     --destructive: hsl(6.5 56.7% 38%);
     --destructive-foreground: hsl(48 55.6% 98.2%);
     --border: hsl(41.5 24.5% 79.2%);
-    --input: hsl(40.4 20.8% 51%);
+    --input: hsl(37.5 20.7% 45.5%);
     --ring: hsl(155 32.7% 21.6%);
 
     /*
@@ -178,22 +178,29 @@
      * call site. --destructive stays separate: it is for destructive BUTTONS, these
      * are for displaying state.
      *
-     * Measured contrast of each foreground on its own surface: success 5.42:1,
-     * warning 5.00:1, danger 5.80:1. All clear WCAG AA — but warning has the least
-     * headroom of the three, so darken it before lightening its surface.
+     * Measured on the surface each is actually painted on:
      *
-     * The tightest pair in the palette is not in this table: it is the NEUTRAL status
-     * pill, --muted-foreground on --muted, at 5.46:1. That is the default state of
-     * nearly every code on the list, so re-measure it before nudging either token.
+     *   success #2f6b3f on --success-surface   5.42:1
+     *   warning #7d5210 on --warning-surface   5.76:1   and 5.32:1 on --background,
+     *                                          which is where the upgrade CTA puts it
+     *   danger  #98362a on --danger-surface    5.79:1
+     *   --muted-foreground on --muted          5.46:1   (the neutral `active` pill)
+     *
+     * Re-measure after moving ANY of these, and measure against every surface the
+     * colour lands on rather than the obvious one — warning previously sat at 4.62:1
+     * on the canvas, 0.12 above the floor, because the upgrade button inherits the
+     * colour from its banner and then paints its own --background fill underneath.
      *
      * --success is NOT used for the `active` status pill, and must not be restored
      * there. The reason is SHARED HUE, not a contrast ratio: success and the pine
      * brand are both greens at nearly the same lightness, so a green "Aktif" badge
      * reads as part of the navbar rather than as a status.
      *
-     * Stating it as a ratio would be wrong and actively misleading — danger measures
-     * 1.38:1 against pine and warning 1.70:1, both at or below success's 1.57:1, and
-     * both are kept precisely because their hues separate cleanly from green.
+     * Stating it as a ratio would be wrong and actively misleading. Danger measures
+     * 1.38:1 against pine and warning 1.70:1, either side of success's 1.57:1 — so the
+     * ratio does not separate the colour that was removed from the two that were
+     * kept. What separates them is hue: amber and rust read as distinct from green,
+     * another green does not.
      *
      * --success survives for genuine success feedback (the copy confirmation, toasts),
      * where nothing sits beside the brand.
@@ -201,7 +208,7 @@
     --success: hsl(136 39% 30.2%);
     --success-surface: hsl(100 27.3% 91.4%);
     --success-border: hsl(103.8 27.1% 81.2%);
-    --warning: hsl(36.2 78.1% 30.4%);
+    --warning: hsl(36.3 77.3% 27.6%);
     --warning-surface: hsl(40 69.2% 89.8%);
     --warning-border: hsl(40.3 55.8% 79.6%);
     --danger: hsl(6.5 56.7% 38%);

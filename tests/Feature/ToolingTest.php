@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\QrCodeStatus;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Yaml\Yaml;
 
@@ -240,4 +241,96 @@ it('carries one brand colour into the pages that have no stylesheet', function (
     ));
 
     expect($missing)->toBe([]);
+});
+
+/*
+ * Contrast is asserted here rather than claimed in a comment.
+ *
+ * Four figures written into code comments across this palette's two tasks turned out
+ * to be wrong — measured against a candidate value and never re-measured after the
+ * token moved, or measured against the obvious surface rather than every surface the
+ * colour actually lands on. A number in a comment is a claim; this is a check.
+ *
+ * Pairs are the ones that actually occur, taken from a full audit of what the Vue and
+ * Blade sources render. Thresholds: WCAG 1.4.3 wants 4.5:1 for normal text, 1.4.11
+ * wants 3:1 for the boundary of a control and for a state carried by visuals alone.
+ */
+it('meets WCAG AA everywhere the palette is actually painted', function () {
+    $t = paletteTokens();
+
+    $pairs = [
+        // --- text on its surface, 4.5:1 ---
+        ['foreground', 'background', 4.5, 'body text on the page'],
+        ['foreground', 'card', 4.5, 'card text'],
+        ['muted-foreground', 'background', 4.5, 'page subtitles'],
+        ['muted-foreground', 'card', 4.5, 'destination url, scan counts'],
+        ['muted-foreground', 'muted', 4.5, 'the neutral `active` status pill'],
+        ['primary-foreground', 'primary', 4.5, 'primary button label'],
+        ['secondary-foreground', 'secondary', 4.5, 'secondary button label'],
+        ['nav-foreground', 'nav', 4.5, 'navbar wordmark and links'],
+        ['success', 'success-surface', 4.5, 'copy confirmation'],
+        ['warning', 'warning-surface', 4.5, 'paused pill'],
+        ['danger', 'danger-surface', 4.5, 'blocked pill'],
+        // The upgrade CTA inherits --warning from its banner and paints its own
+        // --background fill underneath, so warning lands on the canvas too.
+        ['warning', 'background', 4.5, 'upgrade CTA on the canvas'],
+        ['danger', 'background', 4.5, 'validation errors on the canvas'],
+        ['danger', 'card', 4.5, 'validation errors inside a card'],
+
+        // --- control boundaries, 3:1 ---
+        ['input', 'background', 3.0, 'form fields and outline buttons on the page'],
+        ['input', 'card', 3.0, 'form fields inside a card'],
+        ['input', 'warning-surface', 3.0, 'the upgrade button inside its banner'],
+        ['primary', 'background', 3.0, 'primary button against the page'],
+    ];
+
+    $failures = [];
+
+    foreach ($pairs as [$fg, $bg, $threshold, $where]) {
+        $ratio = contrastRatio($t[$fg], $t[$bg]);
+
+        if ($ratio < $threshold) {
+            $failures[] = sprintf(
+                '--%s on --%s is %.2f:1, needs %.1f:1 (%s)',
+                $fg, $bg, $ratio, $threshold, $where,
+            );
+        }
+    }
+
+    // The focus halo is an alpha overlay, so it has to be composited before it means
+    // anything — at /50 it measured 2.43:1 on the canvas and read as almost nothing.
+    foreach (['background', 'card'] as $surface) {
+        $halo = compositeOver($t['ring'], 0.7, $t[$surface]);
+        $ratio = contrastRatio($halo, $t[$surface]);
+
+        if ($ratio < 3.0) {
+            $failures[] = sprintf('focus halo on --%s is %.2f:1, needs 3:1', $surface, $ratio);
+        }
+    }
+
+    expect($failures)->toBe([]);
+});
+
+/*
+ * The three status colours are luminance twins — danger 0.095, success 0.115,
+ * warning 0.128 — and their surfaces are closer still (warning vs success is 1.00:1).
+ * Red, amber and green are also exactly the hues that collapse under deuteranopia and
+ * protanopia. So a viewer with either condition cannot tell these apart by colour.
+ *
+ * That is fine today ONLY because every status also carries an Indonesian text label
+ * from lang/id. This pins that: the moment a status is shown as a bare dot or a
+ * colour-only legend, the palette gives no headroom to fall back on.
+ */
+it('never conveys status by colour alone', function () {
+    $index = (string) file_get_contents(resource_path('js/pages/qr-codes/Index.vue'));
+
+    expect($index)->toContain('statusLabels[code.status]');
+
+    $labels = (array) trans('qr.status_label');
+
+    expect($labels)->toHaveCount(count(QrCodeStatus::cases()));
+
+    foreach (QrCodeStatus::cases() as $status) {
+        expect($labels[$status->value] ?? '')->not->toBe('');
+    }
 });

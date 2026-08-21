@@ -112,3 +112,67 @@ function hslToHex(float $h, float $s, float $l): string
         (int) round(($b + $m) * 255),
     );
 }
+
+/**
+ * WCAG 2.x relative luminance of a `#rrggbb` colour.
+ */
+function relativeLuminance(string $hex): float
+{
+    $hex = ltrim($hex, '#');
+
+    $linear = static fn (float $channel): float => $channel <= 0.03928
+        ? $channel / 12.92
+        : (($channel + 0.055) / 1.055) ** 2.4;
+
+    return 0.2126 * $linear((int) hexdec(substr($hex, 0, 2)) / 255)
+        + 0.7152 * $linear((int) hexdec(substr($hex, 2, 2)) / 255)
+        + 0.0722 * $linear((int) hexdec(substr($hex, 4, 2)) / 255);
+}
+
+function contrastRatio(string $foreground, string $background): float
+{
+    $a = relativeLuminance($foreground);
+    $b = relativeLuminance($background);
+
+    return (max($a, $b) + 0.05) / (min($a, $b) + 0.05);
+}
+
+/**
+ * Composite a colour over a base at the given alpha, so an overlay token can be
+ * measured as the colour it actually paints rather than as its own value.
+ */
+function compositeOver(string $foreground, float $alpha, string $background): string
+{
+    $fg = ltrim($foreground, '#');
+    $bg = ltrim($background, '#');
+
+    $channel = static fn (int $offset): int => (int) round(
+        (int) hexdec(substr($bg, $offset, 2)) * (1 - $alpha)
+        + (int) hexdec(substr($fg, $offset, 2)) * $alpha
+    );
+
+    return sprintf('#%02x%02x%02x', $channel(0), $channel(2), $channel(4));
+}
+
+/**
+ * Every `--token: hsl(...)` in app.css, resolved to hex.
+ *
+ * @return array<string, string>
+ */
+function paletteTokens(): array
+{
+    preg_match_all(
+        '/^\s*--([a-z-]+):\s*hsl\(([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\)\s*;/m',
+        (string) file_get_contents(resource_path('css/app.css')),
+        $matches,
+        PREG_SET_ORDER,
+    );
+
+    $tokens = [];
+
+    foreach ($matches as [, $name, $h, $s, $l]) {
+        $tokens[$name] = hslToHex((float) $h, (float) $s, (float) $l);
+    }
+
+    return $tokens;
+}
