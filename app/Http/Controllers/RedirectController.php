@@ -161,7 +161,14 @@ final class RedirectController extends Controller
             // path never needs a user, a subscription or a plan name to decide
             // anything (constraint 7).
             'interstitial' => $code->user->entitlements()->can('interstitial'),
-            'records_scans' => $code->user->entitlements()->can('records_scans'),
+            // The canary is scanned by us 1440 times a day, for ever. Recorded, it
+            // would be roughly half a million junk rows a year in scan_events and a
+            // permanent skew on every aggregate — and the alternative the task file
+            // suggests, filtering owner=system in analytics, has to be remembered in
+            // every query anyone writes from here to launch. Excluding it once, here
+            // on the COLD path, means the warm path never learns the word canary.
+            'records_scans' => $slug !== config('health.canary.slug')
+                && $code->user->entitlements()->can('records_scans'),
         ];
 
         // Not for an owner whose scans are not recorded: nothing will ever increment

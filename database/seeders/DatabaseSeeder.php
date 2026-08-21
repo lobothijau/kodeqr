@@ -21,5 +21,9 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Safe to nest despite WithoutModelEvents above: CanarySeeder renders the
+        // destination itself rather than leaning on QrCodeObserver.
+        $this->call(CanarySeeder::class);
     }
 }

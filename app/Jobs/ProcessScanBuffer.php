@@ -8,6 +8,7 @@ use App\Http\Controllers\RedirectController;
 use App\Models\QrCode;
 use App\Models\ScanEvent;
 use App\Services\ScanEnricher;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -33,6 +34,16 @@ use Throwable;
 final class ProcessScanBuffer implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
+
+    /**
+     * Daily counters for M1-T8's metrics line, kept here because this job already
+     * knows every number: nothing is added to the redirect path to produce them
+     * (constraint 1). WIB-dated to match every other day bucket in the product.
+     */
+    public static function metricKey(string $name, string $date): string
+    {
+        return "scans:metrics:{$date}:{$name}";
+    }
 
     /**
      * Unique on execution, not on dispatch. The scheduler's withoutOverlapping only
@@ -133,20 +144,38 @@ final class ProcessScanBuffer implements ShouldBeUnique, ShouldQueue
                 Log::warning('Unreadable scan payloads dropped.', ['count' => $dropped]);
             }
 
-            if ($rows === []) {
-                return;
+            $inserted = [];
+
+            if ($rows !== []) {
+                DB::transaction(function () use ($rows, &$inserted): void {
+                    $fresh = $this->insertable(array_values($rows));
+
+                    if ($fresh === []) {
+                        return;
+                    }
+
+                    ScanEvent::query()->insertOrIgnore($fresh);
+                    $this->touchCodes($fresh);
+                    $inserted = $fresh;
+                });
             }
 
-            DB::transaction(function () use ($rows): void {
-                $fresh = $this->insertable(array_values($rows));
+            // Every counter moves AFTER the commit. Incremented inside the
+            // transaction, a rollback would report scans as processed that no row
+            // records — and the requeued chunk would then count them a second time.
+            $buffered = $this->byScanDate(array_values($rows));
 
-                if ($fresh === []) {
-                    return;
-                }
+            if ($dropped > 0) {
+                // Unreadable payloads have no trustworthy timestamp of their own, so
+                // they are attributed to now. They are never requeued, so they cannot
+                // be counted twice.
+                $today = now()->timezone('Asia/Jakarta')->toDateString();
+                $buffered[$today] = ($buffered[$today] ?? 0) + $dropped;
+            }
 
-                ScanEvent::query()->insertOrIgnore($fresh);
-                $this->touchCodes($fresh);
-            });
+            $this->bump('buffered', $buffered);
+            $this->bump('processed', $this->byScanDate($inserted));
+            $this->bump('bots', $this->byScanDate($inserted, fn (array $row): bool => (bool) ($row['is_bot'] ?? false)));
         } catch (Throwable $exception) {
             // Everything still in play goes back: what mapped cleanly, plus the tail
             // this loop never reached — including the payload it died on, since a
@@ -175,6 +204,62 @@ final class ProcessScanBuffer implements ShouldBeUnique, ShouldQueue
             }
 
             throw $exception;
+        }
+    }
+
+    /**
+     * Bucketed by when the SCAN happened, in WIB, not by when this job got round to
+     * it. A scan at 23:59:59 drained at 00:00:01 belongs to yesterday: dating it by
+     * processing time would drop it out of the nightly report for a day that has
+     * already been reported, and a backlog crossing midnight moves thousands at once.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  (callable(array<string, mixed>): bool)|null  $only
+     * @return array<string, int>
+     */
+    private function byScanDate(array $rows, ?callable $only = null): array
+    {
+        $counts = [];
+
+        foreach ($rows as $row) {
+            if ($only !== null && ! $only($row)) {
+                continue;
+            }
+
+            $date = CarbonImmutable::parse((string) $row['occurred_at'], 'UTC')
+                ->timezone('Asia/Jakarta')
+                ->toDateString();
+
+            $counts[$date] = ($counts[$date] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Best-effort by design. A metrics counter exists so a human can read one log line
+     * a day; it must never be able to fail a chunk of real scans.
+     *
+     * @param  array<string, int>  $byDate
+     */
+    private function bump(string $name, array $byDate): void
+    {
+        try {
+            $redis = Redis::connection();
+
+            foreach ($byDate as $date => $by) {
+                if ($by === 0) {
+                    continue;
+                }
+
+                $key = self::metricKey($name, $date);
+                $redis->incrby($key, $by);
+                // Longer than the nightly command needs, so a missed run can still be
+                // reported by hand the next day.
+                $redis->expire($key, 8 * 24 * 60 * 60);
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Scan metrics counter failed.', ['exception' => $exception->getMessage()]);
         }
     }
 
