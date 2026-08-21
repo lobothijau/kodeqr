@@ -45,6 +45,24 @@ enum Plan: string
         ));
     }
 
+    /**
+     * The tier to offer somebody who has just hit a limit.
+     *
+     * Free and Lapsed both point at Regular: one has never paid and one has stopped,
+     * and in both cases Regular is the cheapest thing that unblocks them. Business
+     * returns null — there is nothing left to sell, so the UI must say something else
+     * rather than invent a tier.
+     */
+    public function upgradeTarget(): ?self
+    {
+        return match ($this) {
+            self::Free, self::Lapsed => self::Regular,
+            self::Regular => self::Plus,
+            self::Plus => self::Business,
+            self::Business => null,
+        };
+    }
+
     public function isPaid(): bool
     {
         return ! in_array($this, [self::Free, self::Lapsed], true);

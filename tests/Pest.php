@@ -24,6 +24,11 @@ pest()->extend(TestCase::class)
         if (redisReachable()) {
             Redis::connection()->flushdb();
         }
+
+        // Inertia pages resolve their component through the Vite manifest, so every
+        // page test would otherwise depend on `npm run build` having been run — and
+        // fail in CI for a reason that has nothing to do with the code under test.
+        $this->withoutVite();
     })
     ->in('Feature');
 
