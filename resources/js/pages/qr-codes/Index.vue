@@ -65,13 +65,14 @@ const quotaFraction = computed(() => {
 // `over_quota` a billing one — neither is undone from this screen.
 const pausable = (status: Status) => status === 'active' || status === 'paused';
 
+// Semantic tokens, not raw palette: emerald/amber/red read cold against the warm
+// canvas, and picking them per call site is how the same status ends up two
+// different colours on two different screens.
 const statusClass: Record<Status, string> = {
-    active: 'border-emerald-600/20 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-950 dark:text-emerald-300',
-    paused: 'border-amber-600/20 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-950 dark:text-amber-300',
-    blocked:
-        'border-red-600/20 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-950 dark:text-red-300',
-    over_quota:
-        'border-red-600/20 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-950 dark:text-red-300',
+    active: 'border-success-border bg-success-surface text-success',
+    paused: 'border-warning-border bg-warning-surface text-warning',
+    blocked: 'border-danger-border bg-danger-surface text-danger',
+    over_quota: 'border-danger-border bg-danger-surface text-danger',
 };
 
 const scanUrl = (slug: string) => `${props.scanBaseUrl}/x/${slug}`;
@@ -184,7 +185,7 @@ const numberFormat = new Intl.NumberFormat('id-ID');
 
         <div
             v-if="quotaReached"
-            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-600/20 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/20 dark:bg-amber-950 dark:text-amber-100"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-sm text-warning"
         >
             <p>{{ quotaReached.message }}</p>
             <!-- The payload was being assembled server-side and dropped here, so the
@@ -235,7 +236,12 @@ const numberFormat = new Intl.NumberFormat('id-ID');
             >
                 <div class="flex gap-4 p-4">
                     <!-- The picture is the point. A row of slugs was the whole of
-                         the owner's complaint about this screen. -->
+                         the owner's complaint about this screen.
+
+                         bg-white is deliberate and load-bearing, not a missed
+                         token: the PNG's quiet zone is white, and tinting the tile
+                         to match the cards would eat into the margin a scanner
+                         needs to lock on. This is the one white surface left. -->
                     <img
                         :src="qrImage.url(code.id, { query: { size: 160 } })"
                         :alt="`QR ${code.slug}`"
@@ -279,12 +285,12 @@ const numberFormat = new Intl.NumberFormat('id-ID');
                 >
                     <button
                         type="button"
-                        class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                        class="flex min-w-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                         @click="copy(code.slug)"
                     >
                         <Check
                             v-if="copiedSlug === code.slug"
-                            class="size-3.5 shrink-0 text-emerald-600"
+                            class="size-3.5 shrink-0 text-success"
                         />
                         <Copy v-else class="size-3.5 shrink-0" />
                         <span class="truncate" :title="scanUrl(code.slug)">{{

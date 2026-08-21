@@ -115,3 +115,96 @@ it('keeps pint, larastan and pest in the one script CI and the hook both call', 
         // default 128M crashes a parallel worker mid-analysis.
         ->and(implode(' ', $composer['scripts']['types:check']))->toContain('phpstan analyse --memory-limit');
 });
+
+/*
+ * The app has ONE palette. `dark:` is a BUILT-IN Tailwind v4 variant whose fallback
+ * is `@media (prefers-color-scheme: dark)`, so a `dark:` utility copied back into
+ * this codebase would not sit there inert — it would fire on any dark-mode phone,
+ * invisible to anyone developing in light mode.
+ *
+ * Two halves, and both matter: no `dark:` in our own source, and the variant still
+ * overridden to a selector nothing carries so the ones we do NOT control stay dead.
+ */
+it('keeps exactly one palette', function () {
+    $offenders = [];
+
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator(resource_path(), FilesystemIterator::SKIP_DOTS)
+    );
+
+    /** @var SplFileInfo $file */
+    foreach ($files as $file) {
+        if (! in_array($file->getExtension(), ['vue', 'ts', 'js', 'css', 'php'], true)) {
+            continue;
+        }
+
+        $contents = (string) file_get_contents($file->getPathname());
+
+        if (preg_match('/(?<![\w-])dark:[a-z0-9[]/i', $contents) === 1) {
+            $offenders[] = str_replace(resource_path().'/', '', $file->getPathname());
+        }
+    }
+
+    $css = (string) file_get_contents(resource_path('css/app.css'));
+
+    expect($offenders)->toBe([])
+        // Neutralised, NOT deleted. Deleting the override hands `dark:` back to its
+        // built-in @media fallback, and utilities get compiled from sources this
+        // project does not own — Laravel's pagination views, the compiled Blade
+        // cache, even class names quoted in documentation markdown.
+        ->and($css)->toContain('@custom-variant dark (&:where(.no-dark-mode *));')
+        ->and($css)->not->toContain('.dark {');
+});
+
+/*
+ * The canvas colour is hardcoded in FOUR places outside app.css, because each one
+ * has to work before or without the stylesheet: the root document paints it inline
+ * so there is no flash on load and no mismatched band on overscroll, advertises it
+ * as theme-color so mobile browser chrome matches, and the two scanner-facing Blade
+ * pages carry their own copy because they have no build step at all.
+ *
+ * Change --background and miss one, and the suite stays green while the page
+ * constraint 8 promises is always branded sits on the old colour.
+ */
+it('paints one canvas everywhere it is hardcoded', function () {
+    preg_match(
+        '/--background:\s*hsl\(([^)]+)\)/',
+        (string) file_get_contents(resource_path('css/app.css')),
+        $token,
+    );
+
+    expect($token[1] ?? null)->not->toBeNull();
+
+    [$h, $s, $l] = array_map(
+        static fn (string $part): float => (float) rtrim($part, '%'),
+        preg_split('/\s+/', trim($token[1])) ?: [],
+    );
+
+    $canvas = hslToHex($h, $s, $l);
+
+    $sites = [
+        'views/app.blade.php',
+        'views/redirect/layout.blade.php',
+        'views/abuse/report.blade.php',
+    ];
+
+    // Collected, not asserted one by one: Pest's toContain takes further NEEDLES,
+    // not a failure message, so a message argument silently becomes a second
+    // assertion that always fails.
+    $missing = array_values(array_filter(
+        $sites,
+        static fn (string $site): bool => ! str_contains(
+            strtolower((string) file_get_contents(resource_path($site))),
+            $canvas,
+        ),
+    ));
+
+    expect($missing)->toBe([]);
+
+    // Both metas and the inline paint, specifically — not merely the string
+    // appearing somewhere in the file.
+    $root = strtolower((string) file_get_contents(resource_path('views/app.blade.php')));
+
+    expect($root)->toContain("background-color: {$canvas};")
+        ->and($root)->toContain("<meta name=\"theme-color\" content=\"{$canvas}\">");
+});

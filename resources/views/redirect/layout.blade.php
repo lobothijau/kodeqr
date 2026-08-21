@@ -10,16 +10,16 @@
         <meta http-equiv="refresh" content="{{ $refreshAfter }};url={{ $refreshTo }}">
     @endisset
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#fafafa">
+    <meta name="theme-color" content="#f4f2ed">
     <title>{{ $title }} · kodeqr</title>
     <style>
         :root {
-            --bg: #fafafa; --surface: #ffffff; --fg: #09090b; --muted: #52525b;
-            --line: #e4e4e7; --brand: #18181b;
-            --tone-bg: #f4f4f5; --tone-fg: #52525b;
+            --bg: #f4f2ed; --surface: #fbfaf7; --fg: #1c1a17; --muted: #6f6a61;
+            --line: #e4e0d8; --brand: #1c1a17;
+            --tone-bg: #edeae3; --tone-fg: #6f6a61;
         }
-        .tone-warning { --tone-bg: #fef3c7; --tone-fg: #b45309; }
-        .tone-danger  { --tone-bg: #fee2e2; --tone-fg: #b91c1c; }
+        .tone-warning { --tone-bg: #f7ebd3; --tone-fg: #8a5a11; }
+        .tone-danger  { --tone-bg: #f7e1dc; --tone-fg: #98362a; }
 
         *, *::before, *::after { box-sizing: border-box; }
         html { -webkit-text-size-adjust: 100%; }

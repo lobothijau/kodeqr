@@ -2,10 +2,27 @@
 
 @import 'tw-animate-css';
 
+/*
+ * ONE palette. This app has no dark mode — there is no `.dark` block below and
+ * nothing ever adds that class.
+ *
+ * The instinct is to delete this line. Do not: `dark:` is a BUILT-IN Tailwind v4
+ * variant that falls back to `@media (prefers-color-scheme: dark)`, so removing the
+ * override does not disable dark utilities — it makes every one that gets compiled
+ * fire on any dark-mode device. And they do get compiled from sources this project
+ * does not own: Laravel's own pagination views, the compiled Blade cache sourced
+ * below, and even class names quoted in documentation markdown, which Tailwind
+ * scans as eagerly as it scans components.
+ *
+ * (Naming one here as an example would compile it, and trip the guard test that
+ * exists to catch exactly that.)
+ *
+ * Pointing the variant at a class nobody applies keeps those inert instead.
+ */
+@custom-variant dark (&:where(.no-dark-mode *));
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
-
-@custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-sans:
@@ -44,6 +61,16 @@
     --color-input: var(--input);
     --color-ring: var(--ring);
 
+    --color-success: var(--success);
+    --color-success-surface: var(--success-surface);
+    --color-success-border: var(--success-border);
+    --color-warning: var(--warning);
+    --color-warning-surface: var(--warning-surface);
+    --color-warning-border: var(--warning-border);
+    --color-danger: var(--danger);
+    --color-danger-surface: var(--danger-surface);
+    --color-danger-border: var(--danger-border);
+
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
@@ -61,12 +88,13 @@
 }
 
 /*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+  Tailwind v4 defaults every border to `currentColor`; this restores a v3-style
+  default so an element with `border` and no colour still gets a hairline.
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  It must point at --border, not at a Tailwind grey. The starter kit shipped
+  `var(--color-gray-200)` here, which is a COLD grey that silently overrode the
+  theme's border colour everywhere a component set a border without one — on a warm
+  canvas that put grey hairlines across the whole UI.
 */
 @layer base {
     *,
@@ -74,90 +102,91 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
-    }
-}
-
-@layer utilities {
-    body,
-    html {
-        --font-sans:
-            'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-            'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        border-color: var(--border, currentColor);
     }
 }
 
 :root {
-    --background: hsl(0 0% 100%);
-    --foreground: hsl(0 0% 3.9%);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0% 3.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(0 0% 92.1%);
-    --secondary-foreground: hsl(0 0% 9%);
-    --muted: hsl(0 0% 96.1%);
-    --muted-foreground: hsl(0 0% 45.1%);
-    --accent: hsl(0 0% 96.1%);
-    --accent-foreground: hsl(0 0% 9%);
-    --destructive: hsl(0 84.2% 60.2%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 92.8%);
-    --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
-    --chart-1: hsl(12 76% 61%);
-    --chart-2: hsl(173 58% 39%);
-    --chart-3: hsl(197 37% 24%);
-    --chart-4: hsl(43 74% 66%);
-    --chart-5: hsl(27 87% 67%);
-    --radius: 0.5rem;
-    --sidebar-background: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
-    --sidebar-primary: hsl(0 0% 10%);
-    --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(0 0% 94%);
-    --sidebar-accent-foreground: hsl(0 0% 30%);
-    --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(0 0% 98%);
-}
+    /*
+     * Warm sand. No pure white anywhere: the canvas is tinted and so are the cards,
+     * which is the whole point — an off-white canvas with white cards still puts a
+     * sheet of white in front of the reader wherever content lives.
+     *
+     * Inside the application shell the one deliberate white is the QR tile in
+     * qr-codes/Index.vue: a code's quiet zone is white, and tinting it eats into the
+     * margin a scanner needs to lock on.
+     *
+     * It is NOT the only white left in the repo, and saying so would be a lie a
+     * future reader would rely on. The starter-kit landing page still paints white
+     * cards, and the orphaned auth and sidebar layouts carry `text-white` on dark
+     * fills. Both are logged in docs/BACKLOG.md; neither is reachable from a signed-in
+     * screen, which is the line this palette currently holds.
+     *
+     * Keep --background in step with the inline html background in
+     * resources/views/app.blade.php.
+     */
+    --background: hsl(42.9 24.1% 94.3%);
+    --foreground: hsl(36 9.8% 10%);
+    --card: hsl(45 33.3% 97.6%);
+    --card-foreground: hsl(36 9.8% 10%);
+    --popover: hsl(45 33.3% 97.6%);
+    --popover-foreground: hsl(36 9.8% 10%);
+    --primary: hsl(36 9.8% 10%);
+    --primary-foreground: hsl(45 33.3% 97.6%);
+    --secondary: hsl(41.5 22.8% 88.8%);
+    --secondary-foreground: hsl(36 9.8% 10%);
+    --muted: hsl(42 21.7% 91%);
+    --muted-foreground: hsl(38.6 6.7% 40.8%);
+    --accent: hsl(42 21.7% 91%);
+    --accent-foreground: hsl(36 9.8% 10%);
+    --destructive: hsl(6.5 56.7% 38%);
+    --destructive-foreground: hsl(45 33.3% 97.6%);
+    --border: hsl(40 18.2% 87.1%);
+    --input: hsl(41.2 19% 83.5%);
+    --ring: hsl(36 9.8% 10%);
 
-.dark {
-    --background: hsl(0 0% 3.9%);
-    --foreground: hsl(0 0% 98%);
-    --card: hsl(0 0% 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(0 0% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
-    --secondary: hsl(0 0% 14.9%);
-    --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(0 0% 16.08%);
-    --muted-foreground: hsl(0 0% 63.9%);
-    --accent: hsl(0 0% 14.9%);
-    --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 84% 60%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 14.9%);
-    --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --sidebar-background: hsl(0 0% 7%);
-    --sidebar-foreground: hsl(0 0% 95.9%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: hsl(0 0% 15.9%);
-    --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-    --sidebar-border: hsl(0 0% 15.9%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(240 5.9% 10%);
+    /*
+     * Status colours, named once. The pills used to hardcode emerald/amber/red with
+     * a dark twin each, which read cold against sand and had to be re-picked at every
+     * call site. --destructive stays separate: it is for destructive BUTTONS, these
+     * are for displaying state.
+     *
+     * Measured contrast of each foreground on its own surface: success 5.42:1,
+     * warning 5.00:1, danger 5.80:1. All clear WCAG AA — but warning has the least
+     * headroom of the three, so darken it before lightening its surface.
+     */
+    --success: hsl(136 39% 30.2%);
+    --success-surface: hsl(100 27.3% 91.4%);
+    --success-border: hsl(103.8 27.1% 81.2%);
+    --warning: hsl(36.2 78.1% 30.4%);
+    --warning-surface: hsl(40 69.2% 89.8%);
+    --warning-border: hsl(40.3 55.8% 79.6%);
+    --danger: hsl(6.5 56.7% 38%);
+    --danger-surface: hsl(11.1 62.8% 91.6%);
+    --danger-border: hsl(10.9 52.4% 83.5%);
+
+    --chart-1: hsl(24 62% 47%);
+    --chart-2: hsl(157 31% 38%);
+    --chart-3: hsl(200 27% 32%);
+    --chart-4: hsl(41 55% 55%);
+    --chart-5: hsl(15 52% 58%);
+    --radius: 0.5rem;
+
+    /*
+     * The sidebar shell is off the layout chain (AppLayout renders AppNavbarLayout),
+     * but components/ui/sidebar/** still references these. They go with those
+     * components in the cleanup already logged in docs/BACKLOG.md; retuned rather
+     * than deleted so the two halves never disagree in the meantime.
+     */
+    --sidebar-background: hsl(45 33.3% 97.6%);
+    --sidebar-foreground: hsl(38.6 6.7% 40.8%);
+    --sidebar-primary: hsl(36 9.8% 10%);
+    --sidebar-primary-foreground: hsl(45 33.3% 97.6%);
+    --sidebar-accent: hsl(42 21.7% 91%);
+    --sidebar-accent-foreground: hsl(36 9.8% 10%);
+    --sidebar-border: hsl(40 18.2% 87.1%);
+    --sidebar-ring: hsl(36 9.8% 10%);
+    --sidebar: hsl(45 33.3% 97.6%);
 }
 
 @layer base {

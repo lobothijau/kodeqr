@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#fafafa">
+    <meta name="theme-color" content="#f4f2ed">
     <title>{{ __('abuse.title') }} · kodeqr</title>
     <style>
         {{-- Same tokens as redirect.layout, kept separate on purpose: that layout is
              on the scan path and every rule added to it is downloaded by every free
              scan. Form styling has no business there. --}}
         :root {
-            --bg: #fafafa; --surface: #ffffff; --fg: #09090b; --muted: #52525b;
-            --line: #e4e4e7; --brand: #18181b; --danger: #b91c1c; --danger-bg: #fee2e2;
+            --bg: #f4f2ed; --surface: #fbfaf7; --fg: #1c1a17; --muted: #6f6a61;
+            --line: #e4e0d8; --brand: #1c1a17; --danger: #98362a; --danger-bg: #f7e1dc;
         }
         *, *::before, *::after { box-sizing: border-box; }
         html { -webkit-text-size-adjust: 100%; }
@@ -78,7 +78,7 @@
         .sent .badge {
             display: inline-flex; align-items: center; justify-content: center;
             width: 3rem; height: 3rem; margin-bottom: 1.25rem;
-            border-radius: 0.75rem; background: #dcfce7; color: #15803d;
+            border-radius: 0.75rem; background: #e7efe3; color: #2f6b3f;
         }
         .sent .badge svg { width: 1.5rem; height: 1.5rem; }
         .sent a { display: inline-block; margin-top: 1.25rem; color: var(--brand); font-weight: 600; font-size: 0.9375rem; }

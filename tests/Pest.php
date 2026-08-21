@@ -82,3 +82,33 @@ function skipWithoutRedis(): bool
 {
     return ! redisReachable();
 }
+
+/**
+ * Convert an HSL triple to a `#rrggbb` string, so a token expressed in HSL can be
+ * compared against a hex literal without eyeballing.
+ */
+function hslToHex(float $h, float $s, float $l): string
+{
+    $s /= 100;
+    $l /= 100;
+
+    $c = (1 - abs(2 * $l - 1)) * $s;
+    $x = $c * (1 - abs(fmod($h / 60, 2) - 1));
+    $m = $l - $c / 2;
+
+    [$r, $g, $b] = match (true) {
+        $h < 60 => [$c, $x, 0.0],
+        $h < 120 => [$x, $c, 0.0],
+        $h < 180 => [0.0, $c, $x],
+        $h < 240 => [0.0, $x, $c],
+        $h < 300 => [$x, 0.0, $c],
+        default => [$c, 0.0, $x],
+    };
+
+    return sprintf(
+        '#%02x%02x%02x',
+        (int) round(($r + $m) * 255),
+        (int) round(($g + $m) * 255),
+        (int) round(($b + $m) * 255),
+    );
+}
